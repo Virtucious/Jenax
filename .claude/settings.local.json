@@ -15,7 +15,17 @@
       "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -m pip install google-auth google-auth-oauthlib google-api-python-client)",
       "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"import app; print\\('full app imports OK'\\)\")",
       "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"import database; database.init_db\\(\\); print\\('DB init OK'\\)\")",
-      "Bash('C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe' -c ':*)"
+      "Bash('C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe' -c ':*)",
+      "Bash(python -c \"import scheduler; import database; print\\('OK'\\)\")",
+      "Bash(python -c \"import scheduler; print\\('scheduler OK'\\)\")",
+      "Bash(python -c \"import telegram_bot; print\\('telegram_bot OK'\\)\")",
+      "Bash(python -m py_compile telegram_bot.py)",
+      "Bash(python -m py_compile scheduler.py app.py database.py)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(\"C:\\\\Program Files\\\\Python310\\\\python.exe\" -m pip install \"python-telegram-bot==21.*\" apscheduler pytz)",
+      "Bash(\"C:\\\\Program Files\\\\Python310\\\\python.exe\" -c \"import telegram; print\\('ok'\\)\")",
+      "Bash(\"C:\\\\Program Files\\\\Python310\\\\python.exe\" app.py)",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -m pip install \"python-telegram-bot==21.*\" apscheduler pytz)"
     ]
   }
 }

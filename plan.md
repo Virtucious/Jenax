@@ -1,551 +1,688 @@
-# jenax Phase 3 — Gmail Integration
+# jenax Phase 4 — Telegram Bot, Scheduler & Notifications
 
 ## Context
 
-jenax Phase 1 and 2 are complete and running. The app has:
-- Goal hierarchy (yearly → monthly → weekly) with full CRUD
-- AI-generated daily task lists via Gemini Flash
-- Task carry-forward from previous days
-- End-of-day reviews with mood tracking
-- Weekly reviews with pattern analysis
-- Smarter plan generation using review history
-- Progress stats, streaks, and trends
+jenax Phases 1-3 are complete and running. The app has:
+- Goal hierarchy with CRUD
+- AI-generated daily tasks via Gemini Flash
+- Task carry-forward, end-of-day reviews, weekly reviews
+- Smarter plan generation using review history and patterns
+- Gmail integration with OAuth, email scanning, action item extraction
+- Progress stats, streaks, trends
 - Single-page Flask app, SQLite database, Tailwind CSS frontend
 
-This phase adds **read-only Gmail integration** — the app scans your recent emails, summarizes them, extracts action items, and suggests them as tasks. The app will NEVER send emails, only read.
+This phase adds three things:
+1. **Telegram bot** — sends your morning plan to your phone and lets you interact with tasks from Telegram
+2. **Background scheduler** — auto-generates plans and scans emails on a schedule
+3. **Browser notifications** — gentle reminders during the day
 
-Do NOT break any existing functionality. All additions integrate cleanly with the existing codebase.
-
----
-
-## How It Works (User's Perspective)
-
-1. User clicks "Connect Gmail" in the app → redirected to Google's OAuth consent screen
-2. User grants READ-ONLY access to their Gmail
-3. App stores the OAuth token locally (in the SQLite database)
-4. A new "Email Digest" section appears on the dashboard
-5. User clicks "Scan Emails" → app fetches last 24hrs of emails → sends them to Gemini for summarization and action item extraction
-6. Action items appear as suggested tasks — user can accept (adds to today's tasks) or dismiss
-7. The daily plan generation also considers pending email action items
+Do NOT break any existing functionality.
 
 ---
 
-## Prerequisites (User Must Do Before This Works)
+## Part 1: Telegram Bot
 
-These steps happen OUTSIDE the app. Document them clearly in the README.
+### What It Does
 
-### Step 1: Create a Google Cloud Project (free)
-1. Go to https://console.cloud.google.com/
-2. Create a new project (name it "jenax" or anything)
-3. Enable the **Gmail API**: go to APIs & Services → Library → search "Gmail API" → Enable
+A Telegram bot that:
+- Sends your morning plan at a scheduled time
+- Sends end-of-day review reminders
+- Lets you check off tasks by tapping buttons
+- Lets you ask for a quick status update anytime
+- Sends alerts when high-priority email action items come in
 
-### Step 2: Create OAuth Credentials
-1. Go to APIs & Services → Credentials → Create Credentials → OAuth Client ID
-2. If prompted, configure the OAuth consent screen:
-   - User type: **External**
-   - App name: "jenax"
-   - Scopes: add `https://www.googleapis.com/auth/gmail.readonly`
-   - Test users: add your own Gmail address
-   - No need to publish — "Testing" mode is fine for personal use
-3. Application type: **Web application**
-4. Authorized redirect URIs: add `http://localhost:5000/auth/gmail/callback`
-5. Download the credentials JSON — save it as `credentials.json` in the jenax project root
+### Prerequisites (User Setup)
 
-### Step 3: Add to `.env`
-```
-# Existing
-GEMINI_API_KEY=your-key
+Document these in README:
 
-# New — path to the downloaded Google credentials file
-GOOGLE_CREDENTIALS_PATH=credentials.json
-```
+1. Open Telegram, search for `@BotFather`
+2. Send `/newbot`
+3. Choose a name (e.g., "jenax Bot") and username (e.g., "myjenax_bot")
+4. BotFather gives you a token like `7123456789:AAHxyz...`
+5. Add to `.env`:
+   ```
+   TELEGRAM_BOT_TOKEN=your-bot-token-here
+   ```
+6. Start the app, then open your bot in Telegram and send `/start`
+7. The app registers your chat ID automatically
 
----
-
-## Tech Stack Additions
+### Tech Stack Addition
 
 | What | Package | Why |
 |------|---------|-----|
-| Google Auth | `google-auth`, `google-auth-oauthlib` | OAuth2 flow |
-| Gmail API | `google-api-python-client` | Read emails |
+| Telegram Bot | `python-telegram-bot` | Mature, async-capable, simple API |
 
 Add to `requirements.txt`:
 ```
-google-auth
-google-auth-oauthlib
-google-api-python-client
+python-telegram-bot==21.*
 ```
 
----
-
-## Project Structure (New Files Only)
+### Project Structure (New Files)
 
 ```
 jenax/
 ├── ... (existing files)
-├── gmail_client.py         # OAuth flow + email fetching
-├── email_processor.py      # LLM-based email summarization & action extraction
-└── credentials.json        # User downloads this from Google Cloud (gitignored)
+├── telegram_bot.py          # Bot setup, command handlers, message sending
+└── scheduler.py             # APScheduler-based background task runner
 ```
 
-Add `credentials.json` and `token.json` to `.gitignore`.
+### Database Changes
 
----
-
-## Database Changes
-
-### Table: `email_digests`
 ```sql
-CREATE TABLE IF NOT EXISTS email_digests (
+CREATE TABLE IF NOT EXISTS bot_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date DATE NOT NULL DEFAULT (date('now')),
-    emails_scanned INTEGER DEFAULT 0,
-    ai_summary TEXT,
-    raw_emails_json TEXT,       -- stored for re-processing if needed
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### Table: `email_action_items`
-```sql
-CREATE TABLE IF NOT EXISTS email_action_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    digest_id INTEGER REFERENCES email_digests(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    description TEXT,
-    priority TEXT CHECK(priority IN ('high', 'medium', 'low')),
-    source_subject TEXT,        -- subject line of the email this came from
-    source_sender TEXT,         -- sender of the email
-    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'dismissed')),
-    task_id INTEGER REFERENCES daily_tasks(id) ON DELETE SET NULL,  -- linked task if accepted
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### Table: `oauth_tokens`
-```sql
-CREATE TABLE IF NOT EXISTS oauth_tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    service TEXT UNIQUE NOT NULL,     -- 'gmail' for now, extensible later
-    token_json TEXT NOT NULL,         -- serialized token object
-    email TEXT,                       -- user's email address for display
+    service TEXT UNIQUE NOT NULL,        -- 'telegram'
+    chat_id TEXT,                        -- user's Telegram chat ID
+    enabled BOOLEAN DEFAULT 1,
+    settings_json TEXT,                  -- JSON blob for preferences
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
----
-
-## Backend: `gmail_client.py`
-
-This module handles OAuth and raw email fetching. It does NOT do any AI processing.
-
-### Functions
-
-```python
-# --- OAuth Flow ---
-
-def get_auth_url():
-    """
-    Build and return the Google OAuth authorization URL.
-    Uses credentials.json, requests gmail.readonly scope.
-    Redirect URI: http://localhost:5000/auth/gmail/callback
-    Returns: (auth_url, state)
-    """
-
-def handle_callback(auth_code):
-    """
-    Exchange the authorization code for tokens.
-    Save the token to the oauth_tokens table (service='gmail').
-    Also fetch and store the user's email address for display.
-    Returns: user's email address
-    """
-
-def get_gmail_service():
-    """
-    Load token from oauth_tokens table.
-    If token is expired, refresh it and update the database.
-    If no token exists or refresh fails, return None (user needs to re-auth).
-    Returns: gmail API service object or None
-    """
-
-def is_connected():
-    """
-    Check if a valid Gmail token exists.
-    Returns: { "connected": bool, "email": str or None }
-    """
-
-def disconnect():
-    """
-    Delete the token from oauth_tokens table.
-    Revoke the token with Google if possible.
-    """
-
-# --- Email Fetching ---
-
-def fetch_recent_emails(hours=24, max_results=50):
-    """
-    Fetch emails from the last N hours.
-    Uses Gmail API's messages.list with a query like:
-        "newer_than:1d" or "after:{epoch_timestamp}"
-    
-    For each message:
-    1. Get message metadata (subject, from, to, date)
-    2. Get the plain text body (prefer text/plain, fall back to text/html stripped of tags)
-    3. Skip emails from noreply addresses, newsletters, and automated notifications
-       (filter by sender patterns: noreply@, no-reply@, notifications@, mailer-daemon@)
-    4. Truncate each email body to 1000 characters max (we only need enough for summarization)
-    
-    Returns: list of dicts:
-    [
-        {
-            "id": "msg_id",
-            "subject": "...",
-            "sender": "Name <email>",
-            "date": "ISO datetime",
-            "snippet": "first 200 chars",
-            "body": "truncated body text (max 1000 chars)",
-            "labels": ["INBOX", "UNREAD", ...]
-        }
-    ]
-    """
-```
-
-### Important Implementation Notes
-
-- Use `google.oauth2.credentials.Credentials` and `google_auth_oauthlib.flow.Flow`
-- Store tokens as JSON in the database, not as files (cleaner, no `token.json` file needed)
-- Handle token refresh transparently — if a refresh fails, mark as disconnected
-- The Gmail API returns email bodies as base64url encoded — decode properly
-- For HTML-only emails, strip tags to get plain text (use a simple regex or `html.parser`)
-- Rate limiting: Gmail API free tier allows 250 quota units per user per second — fetching 50 emails is well within limits
-
----
-
-## Backend: `email_processor.py`
-
-This module sends emails to Gemini for summarization and action item extraction.
-
-### Function
-
-```python
-def process_emails(emails):
-    """
-    Takes the list of email dicts from gmail_client.fetch_recent_emails().
-    Sends them to Gemini for analysis.
-    Returns: {
-        "summary": "...",
-        "action_items": [
-            {
-                "title": "...",
-                "description": "...",
-                "priority": "high|medium|low",
-                "source_subject": "...",
-                "source_sender": "..."
-            }
-        ],
-        "categories": {
-            "needs_reply": 3,
-            "informational": 8,
-            "action_required": 2,
-            "can_ignore": 5
-        }
-    }
-    """
-```
-
-### LLM Prompt for Email Processing
-
-```
-You are an executive assistant reviewing someone's recent emails. Your job is to:
-1. Provide a brief summary of the inbox
-2. Extract concrete action items that the user needs to do
-3. Categorize the emails
-
-## Recent Emails (last 24 hours)
-
-{for each email:
-"---
-From: {sender}
-Subject: {subject}
-Date: {date}
-Body: {body (truncated)}
----"
-}
-
-## Instructions
-
-1. **Summary**: Write a 2-4 sentence overview of the inbox. Mention any urgent items first. Group related emails together (e.g., "3 emails about Project X").
-
-2. **Action Items**: Extract tasks the user needs to actually DO. Rules:
-   - Only include items that require the user's action (reply, review, complete, decide, attend)
-   - Do NOT include informational emails, newsletters, or notifications
-   - Each action item should be a concrete, completable task
-   - Set priority based on urgency and importance:
-     - high: has a deadline soon, someone is waiting, or it's from a boss/important contact
-     - medium: needs to be done but not urgent
-     - low: nice to do, optional, or low-stakes
-
-3. **Categories**: Count how many emails fall into each bucket:
-   - needs_reply: someone asked a question or is waiting for a response
-   - action_required: requires the user to do something other than reply
-   - informational: FYI, updates, newsletters, no action needed
-   - can_ignore: automated notifications, marketing, spam-adjacent
-
-Respond ONLY with valid JSON:
+The `settings_json` stores user preferences:
+```json
 {
-  "summary": "2-4 sentence inbox summary",
-  "action_items": [
-    {
-      "title": "Short action-oriented task title",
-      "description": "1-2 sentences on what exactly to do and why",
-      "priority": "high|medium|low",
-      "source_subject": "Original email subject line",
-      "source_sender": "Sender name"
-    }
-  ],
-  "categories": {
-    "needs_reply": <number>,
-    "informational": <number>,
-    "action_required": <number>,
-    "can_ignore": <number>
-  }
+    "morning_plan_time": "07:00",
+    "evening_review_time": "21:00",
+    "send_morning_plan": true,
+    "send_evening_reminder": true,
+    "send_email_alerts": true,
+    "timezone": "Asia/Kolkata"
 }
-
-If there are no action items, return an empty array for action_items. 
-If there are no emails, return a summary saying "No new emails in the last 24 hours."
 ```
 
-### Privacy Consideration
-- Email bodies are sent to Gemini's API for processing. The user should be aware of this.
-- Show a one-time notice in the UI when they first connect: "Your email content will be sent to Google's Gemini API for summarization. Emails are not stored on any external server."
-- Store `raw_emails_json` locally in the database for re-processing — but only keep the last 7 days. Add a cleanup step that deletes email_digests older than 7 days on app startup.
+### Backend: `telegram_bot.py`
+
+#### Bot Initialization
+
+```python
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application, CommandHandler, CallbackQueryHandler, 
+    MessageHandler, filters, ContextTypes
+)
+
+# Build the bot application
+app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+```
+
+#### Command Handlers
+
+**`/start`**
+- Saves the user's `chat_id` to `bot_config` table (service='telegram')
+- Replies: "Welcome to jenax! I'll send you your daily plans and reminders. Use /help to see what I can do."
+- If already registered, replies: "You're already connected! Use /help to see commands."
+
+**`/help`**
+- Replies with:
+  ```
+  📋 jenax Bot Commands:
+  
+  /plan — Generate and view today's plan
+  /tasks — See today's tasks with completion status
+  /done <number> — Mark a task as complete (e.g., /done 2)
+  /progress — See your current streak and weekly stats
+  /goals — List your active goals
+  /review — Trigger an end-of-day review
+  /settings — Configure notification times
+  /stop — Pause all notifications
+  /resume — Resume notifications
+  ```
+
+**`/plan`**
+- Calls the same logic as `POST /api/generate-plan`
+- Formats the result as a Telegram message:
+  ```
+  📅 Your Plan for Today (Mon, Mar 31)
+  
+  💡 "Focus on the Python course today — you're 3 days behind schedule."
+  
+  1. 🔴 Complete Python Chapter 7 exercises (~45min)
+  2. 🔴 Reply to Sarah about Q3 budget (~15min)
+  3. 🟡 Read 30 pages of Atomic Habits (~40min)
+  4. 🟡 Update resume skills section (~30min)
+  5. 🟢 Review and organize bookmarks (~15min)
+  
+  Tap a button to mark as done:
+  ```
+- Below the message: inline keyboard buttons `[✓ 1] [✓ 2] [✓ 3] [✓ 4] [✓ 5]`
+
+**`/tasks`**
+- Fetches today's tasks from the database
+- Shows them with completion status:
+  ```
+  📋 Today's Tasks (3/5 done)
+  
+  ✅ Complete Python Chapter 7 exercises
+  ✅ Reply to Sarah about Q3 budget
+  ✅ Read 30 pages of Atomic Habits
+  ⬜ Update resume skills section
+  ⬜ Review and organize bookmarks
+  
+  Use /done <number> to complete a task
+  ```
+- Inline buttons: only show buttons for incomplete tasks
+
+**`/done <number>`**
+- Marks the Nth task (in today's task list order) as complete
+- Replies: "✅ Marked 'Update resume skills section' as done! (4/5 complete today)"
+- If all tasks are done: "🎉 All tasks complete! Amazing work today!"
+
+**`/progress`**
+- Calls the same logic as `GET /api/progress`
+- Formats as:
+  ```
+  📊 Your Progress
+  
+  🔥 Current streak: 5 days
+  📈 This week: 73% completion
+  📉 Last week: 65% completion
+  ⭐ Best day: Tuesdays
+  🏆 All-time: 142 tasks completed
+  ```
+
+**`/goals`**
+- Lists active goals grouped by level:
+  ```
+  🎯 Your Active Goals
+  
+  📅 Yearly:
+    • Get a software developer job
+    • Read 12 books
+  
+  📆 Monthly:
+    • Complete Python course
+    • Finish Atomic Habits
+  
+  📋 Weekly:
+    • Finish chapters 5-8
+    • Read 50 pages
+  ```
+
+**`/review`**
+- Triggers the end-of-day review (same as `POST /api/review/daily` but without mood/notes since those are harder to collect via Telegram)
+- Sends mood selection first as inline buttons: `[😫] [😐] [🙂] [😊]`
+- After mood is selected, generates and sends the review:
+  ```
+  🌙 End of Day Review
+  
+  You completed 4 out of 5 tasks today (80%).
+  
+  📝 "Solid day — you knocked out the Python exercises 
+  and stayed on top of email. The resume task slipped 
+  again — consider blocking 30 minutes for it first 
+  thing tomorrow."
+  
+  💡 Tomorrow's suggestions:
+  • Start with the resume update before anything else
+  • You tend to be less productive on Wednesdays — keep it light
+  ```
+
+**`/settings`**
+- Shows current settings with inline buttons to change them:
+  ```
+  ⚙️ Notification Settings
+  
+  🌅 Morning plan: 07:00 AM
+  🌙 Evening review: 09:00 PM
+  📧 Email alerts: On
+  🕐 Timezone: Asia/Kolkata
+  
+  Tap to change:
+  ```
+- Inline buttons: `[Change morning time] [Change evening time] [Toggle email alerts]`
+- Time changes: bot asks "Send me the new time (e.g., 06:30 or 08:00)" and waits for a text reply
+- Timezone: bot asks "Send me your timezone (e.g., America/New_York, Europe/London, Asia/Kolkata)" — validate against pytz/zoneinfo
+
+**`/stop`**
+- Sets `enabled = 0` in bot_config
+- Replies: "⏸ Notifications paused. Use /resume to turn them back on."
+
+**`/resume`**
+- Sets `enabled = 1` in bot_config
+- Replies: "▶️ Notifications resumed!"
+
+#### Callback Query Handler (Button Presses)
+
+Handle all inline button presses:
+- Task completion buttons (`done_1`, `done_2`, etc.): mark task complete, edit the original message to update the status
+- Mood selection (`mood_great`, `mood_good`, etc.): save mood, proceed with review generation
+- Settings buttons: handle setting changes
+
+#### Message Sending Functions (called by scheduler)
+
+```python
+async def send_morning_plan(chat_id):
+    """
+    Generate today's plan and send it to the user.
+    Same format as /plan command.
+    Called by the scheduler at the user's configured morning time.
+    """
+
+async def send_evening_reminder(chat_id):
+    """
+    Send a reminder to review the day.
+    Message: "🌙 Time to wrap up! You completed X/Y tasks today. 
+    Use /review to get your daily reflection, or just check off 
+    any last tasks with /tasks"
+    Called by the scheduler at the user's configured evening time.
+    """
+
+async def send_email_alert(chat_id, action_items):
+    """
+    Send a notification when email scanning finds high-priority action items.
+    Only sends for HIGH priority items.
+    Message: "📧 Urgent email action item:
+    [title]
+    From: [sender] — Re: [subject]
+    
+    [Accept as task] [Dismiss]"
+    """
+```
+
+#### Running the Bot
+
+The bot needs to run alongside Flask. Two approaches:
+
+**Recommended: Run bot in a background thread within the Flask app.**
+
+In `app.py`:
+```python
+import threading
+from telegram_bot import start_bot
+
+# Start bot in background thread when app starts
+if TELEGRAM_BOT_TOKEN:
+    bot_thread = threading.Thread(target=start_bot, daemon=True)
+    bot_thread.start()
+```
+
+In `telegram_bot.py`:
+```python
+def start_bot():
+    """
+    Initialize and run the Telegram bot using polling.
+    This runs in its own thread and doesn't block Flask.
+    Uses asyncio.new_event_loop() since it's in a separate thread.
+    """
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    # Register all handlers
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("plan", plan_command))
+    # ... etc
+    app.add_handler(CallbackQueryHandler(button_callback))
+    
+    app.run_polling()
+```
 
 ---
 
-## API Routes
+## Part 2: Background Scheduler
 
-### OAuth Routes
+### What It Does
 
-**`GET /auth/gmail/status`**
-- Returns: `{ "connected": true/false, "email": "user@gmail.com" or null }`
+Runs tasks automatically on a schedule:
+- Generate morning plan at the user's configured time
+- Send evening review reminder
+- Auto-scan emails (if Gmail connected) every few hours
+- Clean up old email digests (daily)
+- Carry forward yesterday's incomplete tasks (each morning)
 
-**`GET /auth/gmail/connect`**
-- Generates the OAuth URL via `gmail_client.get_auth_url()`
-- Redirects the user's browser to Google's consent screen
+### Tech Stack Addition
 
-**`GET /auth/gmail/callback`**
-- Google redirects here after the user grants access
-- Calls `gmail_client.handle_callback(code)`
-- Redirects back to `/?gmail=connected` (the frontend can show a success toast)
+| What | Package | Why |
+|------|---------|-----|
+| Scheduler | `APScheduler` | Lightweight, works within Flask process |
 
-**`POST /auth/gmail/disconnect`**
-- Calls `gmail_client.disconnect()`
-- Returns: `{ "success": true }`
+Add to `requirements.txt`:
+```
+apscheduler
+```
 
-### Email Routes
+### Backend: `scheduler.py`
 
-**`POST /api/email/scan`**
-- Calls `gmail_client.fetch_recent_emails(hours=24)`
-- If not connected, returns `{ "error": "Gmail not connected", "code": "NOT_CONNECTED" }`
-- Passes emails to `email_processor.process_emails()`
-- Saves results to `email_digests` and `email_action_items` tables
-- Returns the full digest + action items
+```python
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+import pytz
 
-**`GET /api/email/digest?date=YYYY-MM-DD`**
-- Returns the stored digest for that date, including action items
-- Default: today
+scheduler = BackgroundScheduler()
 
-**`PATCH /api/email/action/<id>/accept`**
-- Changes action item status to "accepted"
-- Creates a corresponding task in `daily_tasks` for today:
-  - title and description from the action item
-  - priority from the action item
-  - source = 'email' (add 'email' to the source CHECK constraint: `CHECK(source IN ('ai', 'manual', 'email'))`)
-  - goal_id = null (email tasks don't link to goals)
-- Stores the new task_id in the action item's `task_id` field
-- Returns the created task
+def init_scheduler(app):
+    """
+    Initialize and start all scheduled jobs.
+    Call this once from app.py after all other setup.
+    """
+    
+    # --- Morning routine (runs daily) ---
+    # Time is loaded from bot_config settings, default 07:00
+    
+    scheduler.add_job(
+        morning_routine,
+        CronTrigger(hour=7, minute=0),  # default, overridden by user settings
+        id='morning_routine',
+        replace_existing=True,
+        misfire_grace_time=3600  # if missed, still run within 1 hour
+    )
+    
+    # --- Evening reminder (runs daily) ---
+    scheduler.add_job(
+        evening_routine,
+        CronTrigger(hour=21, minute=0),
+        id='evening_routine',
+        replace_existing=True,
+        misfire_grace_time=3600
+    )
+    
+    # --- Email scan (every 4 hours during daytime) ---
+    scheduler.add_job(
+        scheduled_email_scan,
+        CronTrigger(hour='8,12,16,20', minute=0),
+        id='email_scan',
+        replace_existing=True,
+        misfire_grace_time=1800
+    )
+    
+    # --- Data cleanup (daily at 3 AM) ---
+    scheduler.add_job(
+        data_cleanup,
+        CronTrigger(hour=3, minute=0),
+        id='data_cleanup',
+        replace_existing=True
+    )
+    
+    scheduler.start()
 
-**`PATCH /api/email/action/<id>/dismiss`**
-- Changes action item status to "dismissed"
-- Returns: `{ "success": true }`
+
+def morning_routine():
+    """
+    Runs each morning:
+    1. Carry forward incomplete tasks from yesterday
+    2. Generate today's plan using AI
+    3. Scan emails for action items (if Gmail connected)
+    4. Send morning plan via Telegram (if connected and enabled)
+    """
+
+def evening_routine():
+    """
+    Runs each evening:
+    1. Calculate today's completion stats
+    2. Send evening reminder via Telegram (if connected and enabled)
+    """
+
+def scheduled_email_scan():
+    """
+    Runs periodically:
+    1. Check if Gmail is connected
+    2. Fetch recent emails
+    3. Process through Gemini
+    4. If any HIGH priority action items found, send Telegram alert
+    5. Store digest (overwrite today's existing digest)
+    """
+
+def data_cleanup():
+    """
+    Runs nightly:
+    1. Delete email_digests older than 7 days
+    2. Delete orphaned email_action_items
+    """
+
+def update_schedule_times(morning_time, evening_time, timezone):
+    """
+    Called when user changes settings via Telegram /settings or web UI.
+    Reschedules the morning and evening jobs with new times.
+    
+    morning_time: string like "07:00"
+    evening_time: string like "21:00"  
+    timezone: string like "Asia/Kolkata"
+    """
+    hour, minute = map(int, morning_time.split(':'))
+    tz = pytz.timezone(timezone)
+    
+    scheduler.reschedule_job(
+        'morning_routine',
+        trigger=CronTrigger(hour=hour, minute=minute, timezone=tz)
+    )
+    # same for evening
+```
+
+### Integration with `app.py`
+
+```python
+from scheduler import init_scheduler
+
+# After all route definitions and database init:
+if __name__ == '__main__':
+    init_scheduler(app)
+    app.run(debug=True)
+```
+
+**Important:** When Flask runs with `debug=True`, it spawns a reloader process which causes the scheduler to start twice. Handle this:
+```python
+import os
+if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    init_scheduler(app)
+```
+
+---
+
+## Part 3: Browser Notifications
+
+### What It Does
+
+Sends gentle browser notifications during the day:
+- "You have 3 tasks remaining today" (mid-day reminder)
+- "Time for your evening review" (evening)
+- Notification permission is requested on first visit
+
+### Implementation Approach
+
+Use the **Web Notifications API** (built into browsers, no extra packages).
+
+### Frontend Changes
+
+**Notification Permission Request:**
+
+On first page load, after a 5-second delay (don't immediately ask), show a subtle banner at the top of the page:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 🔔 Enable notifications to get task reminders           │
+│    during the day.              [Enable] [No thanks]    │
+└─────────────────────────────────────────────────────────┘
+```
+
+- "Enable" calls `Notification.requestPermission()`
+- "No thanks" dismisses the banner and sets `localStorage.jenax_notifications_dismissed = true`
+- If already granted, don't show the banner
+- If denied at browser level, don't show the banner
+
+**Notification Scheduling (client-side):**
+
+Since the app is a single-page app open in a browser tab, use `setInterval` or `setTimeout` to check task status periodically:
+
+```javascript
+// Check every 30 minutes while the page is open
+setInterval(async () => {
+    if (Notification.permission !== 'granted') return;
+    
+    const now = new Date();
+    const hour = now.getHours();
+    
+    // Mid-day reminder (between 12:00 and 13:00, once)
+    if (hour === 12 && !sessionStorage.midday_notified) {
+        const response = await fetch('/api/tasks');
+        const tasks = await response.json();
+        const remaining = tasks.filter(t => !t.completed).length;
+        if (remaining > 0) {
+            new Notification('jenax', {
+                body: `You have ${remaining} task${remaining > 1 ? 's' : ''} remaining today.`,
+                icon: '/static/icon.png',  // optional, create a simple icon
+                tag: 'midday-reminder'     // prevents duplicate notifications
+            });
+            sessionStorage.midday_notified = 'true';
+        }
+    }
+    
+    // Evening reminder (between 20:00 and 21:00, once)
+    if (hour === 20 && !sessionStorage.evening_notified) {
+        new Notification('jenax', {
+            body: 'Time to review your day! How did it go?',
+            icon: '/static/icon.png',
+            tag: 'evening-reminder'
+        });
+        sessionStorage.evening_notified = 'true';
+    }
+}, 1800000); // 30 minutes
+```
+
+**Note:** Browser notifications only work when the tab is open. This is a known limitation — the Telegram bot is the reliable notification channel. Browser notifications are a nice-to-have supplement.
+
+---
+
+## API Route Additions
+
+### Telegram Config Routes
+
+**`GET /api/config/telegram`**
+- Returns: `{ "connected": bool, "chat_id": str or null, "settings": {...} }`
+
+**`PUT /api/config/telegram/settings`**
+- Body: `{ "morning_plan_time": "07:00", "evening_review_time": "21:00", ... }`
+- Updates settings_json in bot_config
+- Calls `scheduler.update_schedule_times()` to reschedule jobs
+- Returns: updated settings
+
+### Scheduler Status Route
+
+**`GET /api/scheduler/status`**
+- Returns info about scheduled jobs:
+  ```json
+  {
+    "running": true,
+    "jobs": [
+      {"id": "morning_routine", "next_run": "2025-04-01T07:00:00", "enabled": true},
+      {"id": "evening_routine", "next_run": "2025-04-01T21:00:00", "enabled": true},
+      {"id": "email_scan", "next_run": "2025-04-01T12:00:00", "enabled": true}
+    ]
+  }
+  ```
+
+**`POST /api/scheduler/trigger/<job_id>`**
+- Manually triggers a scheduled job (useful for testing)
+- Only allows: morning_routine, evening_routine, email_scan
+- Returns: `{ "triggered": "morning_routine" }`
 
 ---
 
 ## Frontend Changes
 
-### Sidebar Addition: Gmail Connection
+### Sidebar: Connections Section Update
 
-At the bottom of the sidebar (below the goal tree), add a "Connections" section:
+Expand the existing "Connections" section in the sidebar:
 
 ```
 ── Connections ──────────────
 📧 Gmail: Connected (user@gmail.com)
    [Disconnect]
 
+🤖 Telegram: Connected
+   [Configure] [Disconnect]
+   
    — or if not connected —
 
-📧 Gmail: Not connected
-   [Connect Gmail →]
+🤖 Telegram: Not connected
+   Setup instructions ↗
+   
+── Automation ──────────────
+⏰ Morning plan: 07:00 AM ✓
+🌙 Evening review: 09:00 PM ✓
+📧 Email scan: Every 4 hours ✓
+[Edit Schedule]
 ```
 
-- "Connect Gmail" opens `/auth/gmail/connect` in the same window (not a popup — the OAuth flow will redirect back)
-- "Disconnect" calls `POST /auth/gmail/disconnect` with a confirmation prompt
-- Check connection status on page load via `GET /auth/gmail/status`
+- "Configure" opens a small settings panel (inline in the sidebar or a modal):
+  - Morning plan time (time input)
+  - Evening review time (time input)
+  - Timezone (dropdown or text input)
+  - Toggle switches for: morning plan, evening reminder, email alerts
+  - Save button
+- "Setup instructions" links to the README section or shows a modal with BotFather setup steps
+- Since Telegram connection happens FROM Telegram (user sends /start to the bot), the web UI just shows whether a chat_id is registered
 
-### Main Content: Email Digest Section
+### Settings Modal for Automation
 
-Add a new section between the "Daily Insight" card and the task list. Only show this section if Gmail is connected.
-
-**Layout:**
-
-```
-┌─────────────────────────────────────────────┐
-│ 📧 Email Digest                [Scan Emails]│
-│                                              │
-│ (Before scanning — empty state)              │
-│ "Scan your recent emails to find action      │
-│  items and get a summary."                   │
-│                                              │
-│ (After scanning)                             │
-│ ┌─────────────────────────────────────────┐  │
-│ │ Summary                                 │  │
-│ │ "You received 18 emails in the last     │  │
-│ │  24 hours. 3 need replies, 2 require    │  │
-│ │  action..."                             │  │
-│ │                                         │  │
-│ │  📩 Needs reply: 3  │  ⚡ Action: 2    │  │
-│ │  📄 Info: 8         │  🗑 Ignore: 5    │  │
-│ └─────────────────────────────────────────┘  │
-│                                              │
-│ Action Items (2)                             │
-│ ┌─────────────────────────────────────────┐  │
-│ │ 🔴 Reply to Sarah about Q3 budget       │  │
-│ │    From: Sarah Chen — Re: Q3 Planning   │  │
-│ │    "Sarah asked for your input on..."   │  │
-│ │                     [Accept] [Dismiss]  │  │
-│ ├─────────────────────────────────────────┤  │
-│ │ 🟡 Review PR #482 before EOD            │  │
-│ │    From: DevBot — PR ready for review   │  │
-│ │    "A pull request needs your review.." │  │
-│ │                     [Accept] [Dismiss]  │  │
-│ └─────────────────────────────────────────┘  │
-│                                              │
-│ (After all items accepted/dismissed)         │
-│ "All caught up! ✓"                          │
-└─────────────────────────────────────────────┘
-```
-
-**Behavior:**
-- "Scan Emails" button shows a spinner while working. Disable the button while scanning.
-- If a scan was already done today, show the stored results. Add a "Rescan" button (smaller, secondary style).
-- Action items show priority as colored dots (high=red, medium=yellow, low=green).
-- "Accept" button: calls the accept endpoint, the action item card transitions out with a subtle animation, and the new task appears in the task list below.
-- "Dismiss" button: card transitions out.
-- When all items are handled, show "All caught up! ✓"
-- Category counts (needs_reply, action, info, ignore) shown as a small 2x2 grid with icons.
-
-### Privacy Notice (One-Time)
-
-On the first ever email scan, show a modal:
+When user clicks "Edit Schedule":
 
 ```
 ┌─────────────────────────────────────────────┐
-│ 📧 Email Processing Notice                  │
+│ ⏰ Automation Settings                       │
 │                                              │
-│ To summarize your emails and extract action  │
-│ items, your email content will be sent to    │
-│ Google's Gemini API for processing.          │
+│ Morning Plan Generation                      │
+│ [Toggle ON] at [07:00] ▼                    │
+│ Automatically generate your daily plan       │
 │                                              │
-│ • Emails are processed in real-time and not  │
-│   stored on any external server              │
-│ • Only the last 24 hours of emails are read  │
-│ • Automated/marketing emails are filtered    │
-│   out before processing                      │
-│ • You can disconnect Gmail at any time       │
+│ Evening Review Reminder                      │
+│ [Toggle ON] at [21:00] ▼                    │
+│ Reminder to review your day                  │
 │                                              │
-│              [I Understand, Continue]         │
-│              [Cancel]                         │
+│ Email Scanning                               │
+│ [Toggle ON] every [4 hours] ▼               │
+│ Scan Gmail for action items                  │
+│ (Only when Gmail is connected)               │
+│                                              │
+│ Timezone                                     │
+│ [Asia/Kolkata          ] ▼                  │
+│                                              │
+│                    [Save] [Cancel]            │
 └─────────────────────────────────────────────┘
 ```
 
-Store a flag in localStorage (`jenax_email_notice_accepted = true`) so it only shows once.
+- Time inputs: use HTML `<input type="time">`
+- Email scan frequency: dropdown with options `[Every 2 hours, Every 4 hours, Every 8 hours, Twice a day, Once a day]`
+- Timezone: text input with datalist of common timezones, or just a text field that validates against pytz
+- Save calls `PUT /api/config/telegram/settings` and updates the scheduler
 
-### Integration with Plan Generation
+### Notification Permission Banner
 
-When generating the daily plan (`POST /api/generate-plan`), if there are pending (not yet accepted or dismissed) email action items from today's digest, include them in the planning prompt:
+A slim banner at the very top of the page (above everything else):
 
-Add this section to the existing plan generation prompt:
 ```
-## Pending Email Action Items
-The user's inbox has these unhandled action items:
-{for each pending action item:
-  "- [priority] {title} (from: {source_sender}, re: {source_subject})"
-}
-Consider incorporating high-priority email actions into today's task list.
-Do NOT duplicate them — just factor them into your prioritization.
+┌─────────────────────────────────────────────────────────────┐
+│ 🔔 Get task reminders in your browser  [Enable] [Dismiss]  │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+- Only shows if: notifications not granted AND not previously dismissed
+- Subtle styling: light blue/gray background, small text
+- Dismisses permanently (localStorage flag)
 
 ---
 
 ## Error Handling
 
-### OAuth Errors
-- If `credentials.json` is missing: show a friendly message in the sidebar connection area — "To connect Gmail, follow the setup guide in README.md" (not a crash)
-- If token refresh fails: automatically set status to disconnected, show "Gmail disconnected — please reconnect"
-- If user denies consent: redirect back to `/?gmail=denied`, show a toast "Gmail access was not granted"
+### Telegram Bot
+- If `TELEGRAM_BOT_TOKEN` is not set: bot doesn't start, no error, just skip. Log a message: "Telegram bot token not configured, skipping bot startup."
+- If bot fails to start (invalid token): catch the error, log it, don't crash Flask
+- If sending a message fails (user blocked bot, network error): catch, log, continue. Don't retry for notifications — they're not critical.
+- If the user hasn't sent /start yet (no chat_id): scheduled messages simply don't send. No error.
 
-### API Errors
-- If Gmail API returns 403 (insufficient permissions): prompt user to reconnect
-- If Gmail API returns 429 (rate limit): show "Too many requests, try again in a minute"
-- If Gemini fails during email processing: show "Could not process emails — try again" but still store the raw emails so user can retry without re-fetching
+### Scheduler
+- If a scheduled job fails: APScheduler logs the error by default. Configure it to NOT crash on job errors:
+  ```python
+  scheduler = BackgroundScheduler(job_defaults={'misfire_grace_time': 3600})
+  ```
+- If Flask restarts (debug mode reload): scheduler restarts cleanly due to `replace_existing=True`
+- If the PC was asleep during a scheduled time: `misfire_grace_time` allows the job to run late (within 1 hour for plans, 30 min for email scans)
 
-### Edge Cases
-- No emails in last 24 hours: show a summary saying "No new emails" with 0 action items
-- All emails are automated/filtered out: show "X emails scanned, all were automated notifications. No action items."
-- Very long email threads: truncate body at 1000 chars per email, max 50 emails per scan
-- Multiple scans in one day: each scan replaces the previous digest for today (upsert on date)
-
----
-
-## Data Cleanup
-
-In `database.py` initialization (runs on app startup):
-```python
-# Clean up email digests older than 7 days
-DELETE FROM email_action_items WHERE digest_id IN (
-    SELECT id FROM email_digests WHERE date < date('now', '-7 days')
-);
-DELETE FROM email_digests WHERE date < date('now', '-7 days');
-```
-
-This keeps the database lean since email data has a short shelf life.
-
----
-
-## Database Migration
-
-Add 'email' to the source CHECK constraint on `daily_tasks`. Since SQLite doesn't support ALTER COLUMN, handle this carefully:
-
-Option A (recommended): If you originally created the table with CHECK constraints, you'll need to recreate it. BUT if the existing app works without strict CHECK enforcement (SQLite doesn't enforce CHECK by default unless compiled with SQLITE_ENABLE_CHECK_CONSTRAINTS), you can just insert 'email' source values and they'll work.
-
-Option B: If CHECKs are enforced, recreate the table:
-```sql
--- In database.py, during initialization, check if 'email' source is supported
--- Try inserting a test row — if it fails, recreate the table with the updated constraint
--- This is a one-time migration
-```
-
-Prefer Option A — just insert with source='email' and handle gracefully. Document that the CHECK was expanded.
-
----
-
-## Security Notes
-
-- `credentials.json` contains your Google Cloud client secret — add to `.gitignore`
-- OAuth tokens in the database contain refresh tokens — the SQLite file should not be shared
-- All communication with Google APIs uses HTTPS
-- The app runs on localhost only — no external access by default
-- Read-only scope (`gmail.readonly`) means the app literally cannot send, delete, or modify any emails
+### Browser Notifications
+- If permission denied: silently stop trying. Don't nag the user.
+- If `Notification` API not available (e.g., HTTP without HTTPS): hide the banner entirely. Check with `if ('Notification' in window)`.
 
 ---
 
@@ -557,37 +694,49 @@ GEMINI_API_KEY=your-gemini-api-key
 
 # Gmail Integration (optional)
 GOOGLE_CREDENTIALS_PATH=credentials.json
+
+# Telegram Bot (optional)
+TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+
+# Scheduler timezone (optional, default: UTC)
+DEFAULT_TIMEZONE=Asia/Kolkata
 ```
 
 ---
 
 ## README Additions
 
-Add a new section to README.md:
+### Telegram Bot (Optional)
 
-### Gmail Integration (Optional)
-
-jenax can connect to your Gmail to scan emails and extract action items. This is entirely optional — the app works fine without it.
+Get your daily plan delivered to Telegram and manage tasks from your phone.
 
 **Setup:**
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or use an existing one)
-3. Go to **APIs & Services → Library**, search for "Gmail API", and click **Enable**
-4. Go to **APIs & Services → Credentials**
-5. Click **Configure Consent Screen**:
-   - Choose **External**
-   - App name: "jenax"
-   - Add your email as a test user
-   - Add scope: `https://www.googleapis.com/auth/gmail.readonly`
-   - Save (no need to publish — testing mode works for personal use)
-6. Go back to **Credentials → Create Credentials → OAuth Client ID**:
-   - Application type: **Web application**
-   - Authorized redirect URIs: `http://localhost:5000/auth/gmail/callback`
-   - Download the JSON file and save it as `credentials.json` in the jenax folder
-7. Start jenax and click "Connect Gmail" in the sidebar
+1. Open Telegram and search for `@BotFather`
+2. Send `/newbot` and follow the prompts to create a bot
+3. Copy the token BotFather gives you
+4. Add it to your `.env` file: `TELEGRAM_BOT_TOKEN=your-token`
+5. Restart jenax
+6. Open your new bot in Telegram and send `/start`
+7. That's it — you'll start receiving your morning plan automatically
 
-**Privacy:** Your emails are sent to Google's Gemini API for summarization. They are not stored on any external server. Only the last 24 hours of emails are scanned, and automated/marketing emails are filtered out. You can disconnect at any time.
+**Commands:**
+- `/plan` — Generate today's plan
+- `/tasks` — View today's tasks
+- `/done 3` — Mark task #3 as done
+- `/progress` — See your stats
+- `/review` — End-of-day review
+- `/settings` — Change notification times
+- `/stop` / `/resume` — Pause/resume notifications
+
+### Automation
+
+jenax can run tasks automatically:
+- **Morning plan** — generated at 7:00 AM (configurable)
+- **Evening reminder** — sent at 9:00 PM (configurable)
+- **Email scanning** — every 4 hours (configurable, requires Gmail connection)
+
+Configure these in the app's sidebar under "Automation", or via the Telegram `/settings` command.
 
 ---
 
@@ -595,22 +744,35 @@ jenax can connect to your Gmail to scan emails and extract action items. This is
 
 Build in this exact sequence:
 
-1. **Database tables** — add the three new tables in `database.py` initialization. Add source='email' support to daily_tasks.
+1. **`scheduler.py`** — set up APScheduler with placeholder jobs. Integrate with `app.py`. Verify jobs run on schedule using simple print/log statements.
 
-2. **`gmail_client.py`** — implement OAuth flow (get_auth_url, handle_callback, get_gmail_service, is_connected, disconnect) and email fetching (fetch_recent_emails). Test OAuth flow manually in the browser.
+2. **`telegram_bot.py` — core setup** — bot initialization, `/start` and `/help` commands, chat_id storage. Verify the bot responds in Telegram.
 
-3. **OAuth routes in `app.py`** — add the `/auth/gmail/*` routes. Test the full connect → callback → status flow.
+3. **`telegram_bot.py` — task commands** — `/plan`, `/tasks`, `/done`, `/progress`, `/goals` commands. Verify each works correctly.
 
-4. **`email_processor.py`** — implement the Gemini prompt for email analysis. Test with sample email data before connecting to real Gmail.
+4. **`telegram_bot.py` — review commands** — `/review` with mood selection via inline buttons. Verify the flow works.
 
-5. **Email API routes in `app.py`** — add `/api/email/*` routes. Test scan → digest → accept/dismiss flow.
+5. **`telegram_bot.py` — settings** — `/settings`, `/stop`, `/resume` commands. Verify settings are saved and schedule updates.
 
-6. **Frontend: sidebar connection UI** — add the Gmail connection status and connect/disconnect buttons.
+6. **Connect scheduler to bot** — wire `morning_routine` to generate plan + send via Telegram. Wire `evening_routine` to send reminder. Wire `scheduled_email_scan` to scan + alert on high-priority items. Test by manually triggering via the API.
 
-7. **Frontend: email digest section** — add the full digest UI with summary, categories, and action items.
+7. **API routes** — add `/api/config/telegram`, `/api/scheduler/status`, `/api/scheduler/trigger`.
 
-8. **Frontend: privacy notice modal** — add the one-time notice.
+8. **Frontend: sidebar updates** — Telegram connection status, automation settings display.
 
-9. **Integration with plan generation** — update the planning prompt to include pending email action items.
+9. **Frontend: settings modal** — schedule configuration UI.
 
-10. **Cleanup and error handling** — add the 7-day cleanup, handle all error cases, test edge cases.
+10. **Frontend: browser notifications** — permission banner, midday and evening notification logic.
+
+11. **Polish** — test all edge cases: bot not configured, PC sleep/wake, timezone changes, debug mode double-start, notification permissions denied.
+
+## Important Notes
+
+- The Telegram bot runs in a daemon thread — it must not block Flask and must not crash the main process.
+- All scheduled jobs must be idempotent — running them twice should not create duplicate tasks or send duplicate messages.
+- Use `replace_existing=True` on all jobs so restarts don't create duplicate schedulers.
+- The scheduler and bot are both OPTIONAL. If tokens are not configured, the app works exactly as before. No errors, no warnings in the UI — just the connection section shows "Not connected".
+- Test the threading carefully. Flask and the Telegram bot share the SQLite database — use proper connection handling (one connection per operation, not a shared global connection). SQLite handles concurrent reads fine but writes need care.
+- For the Telegram inline keyboards, always include a `callback_data` string that encodes the action and target (e.g., `"done_3"` for completing task 3, `"mood_good"` for mood selection).
+- `python-telegram-bot` v21 is fully async. Since it runs in its own thread with its own event loop, this is fine. But database calls from bot handlers should use synchronous SQLite (not async).
+- Browser notifications are a progressive enhancement. They should never block or delay page rendering. All notification logic goes at the end of the script tag.

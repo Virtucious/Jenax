@@ -380,6 +380,102 @@ def email_action_dismiss(item_id):
 
 
 # ---------------------------------------------------------------------------
+# Telegram Config
+# ---------------------------------------------------------------------------
+
+@app.route("/api/config/telegram", methods=["GET"])
+def telegram_config_get():
+    config = db.get_bot_config("telegram")
+    if not config:
+        return jsonify({"connected": False, "chat_id": None, "settings": {}})
+    settings = {}
+    try:
+        settings = json.loads(config.get("settings_json") or "{}")
+    except Exception:
+        pass
+    return jsonify({
+        "connected": bool(config.get("chat_id")),
+        "chat_id": config.get("chat_id"),
+        "enabled": bool(config.get("enabled")),
+        "settings": settings,
+    })
+
+
+@app.route("/api/config/telegram/settings", methods=["PUT"])
+def telegram_config_update():
+    data = request.get_json(force=True) or {}
+    config = db.get_bot_config("telegram")
+    if not config:
+        return jsonify({"error": "Telegram not connected yet"}), 404
+
+    try:
+        existing = json.loads(config.get("settings_json") or "{}")
+    except Exception:
+        existing = {}
+
+    allowed_keys = {
+        "morning_plan_time", "evening_review_time",
+        "send_morning_plan", "send_evening_reminder", "send_email_alerts", "timezone",
+    }
+    for k in allowed_keys:
+        if k in data:
+            existing[k] = data[k]
+
+    db.update_bot_config("telegram", settings_json=json.dumps(existing))
+
+    # Reschedule if times/timezone changed
+    if any(k in data for k in ("morning_plan_time", "evening_review_time", "timezone")):
+        import scheduler as sched
+        try:
+            sched.update_schedule_times(
+                existing.get("morning_plan_time", "07:00"),
+                existing.get("evening_review_time", "21:00"),
+                existing.get("timezone", "UTC"),
+            )
+        except Exception:
+            pass
+
+    return jsonify(existing)
+
+
+# ---------------------------------------------------------------------------
+# Scheduler Status
+# ---------------------------------------------------------------------------
+
+@app.route("/api/scheduler/status", methods=["GET"])
+def scheduler_status():
+    import scheduler as sched
+    return jsonify(sched.get_status())
+
+
+@app.route("/api/scheduler/trigger/<job_id>", methods=["POST"])
+def scheduler_trigger(job_id):
+    import scheduler as sched
+    ok = sched.trigger_job(job_id)
+    if not ok:
+        return jsonify({"error": f"Unknown or failed job: {job_id}"}), 400
+    return jsonify({"triggered": job_id})
+
+
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    import os, threading
+
+    # app.debug is still False here (set later by app.run), so use a local constant.
+    # In debug mode the watchdog reloader forks: parent has no WERKZEUG_RUN_MAIN,
+    # child has WERKZEUG_RUN_MAIN='true'. Start bot/scheduler only in the child
+    # to avoid two instances polling the same token simultaneously.
+    DEBUG = True
+    _is_main_process = not DEBUG or os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+
+    from config import TELEGRAM_BOT_TOKEN
+    if TELEGRAM_BOT_TOKEN and _is_main_process:
+        from telegram_bot import start_bot
+        bot_thread = threading.Thread(target=start_bot, daemon=True, name="telegram-bot")
+        bot_thread.start()
+
+    import scheduler as sched
+    sched.init_scheduler(app)
+
+    app.run(debug=DEBUG)

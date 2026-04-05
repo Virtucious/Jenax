@@ -96,6 +96,16 @@ def init_db():
                 task_id INTEGER REFERENCES daily_tasks(id) ON DELETE SET NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS bot_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                service TEXT UNIQUE NOT NULL,
+                chat_id TEXT,
+                enabled BOOLEAN DEFAULT 1,
+                settings_json TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
     # Schema migrations — safe to re-run
@@ -830,3 +840,48 @@ def get_pending_email_action_items(date_str):
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Bot Config
+# ---------------------------------------------------------------------------
+
+def get_bot_config(service):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM bot_config WHERE service = ?", (service,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def save_bot_config(service, chat_id=None, enabled=1, settings_json=None):
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            """INSERT INTO bot_config (service, chat_id, enabled, settings_json, updated_at)
+               VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(service) DO UPDATE SET
+                   chat_id = COALESCE(excluded.chat_id, chat_id),
+                   enabled = excluded.enabled,
+                   settings_json = COALESCE(excluded.settings_json, settings_json),
+                   updated_at = CURRENT_TIMESTAMP""",
+            (service, chat_id, enabled, settings_json),
+        )
+    conn.close()
+    return get_bot_config(service)
+
+
+def update_bot_config(service, **fields):
+    allowed = {"chat_id", "enabled", "settings_json"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return get_bot_config(service)
+    updates["updated_at"] = datetime.utcnow().isoformat()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [service]
+    conn = get_connection()
+    with conn:
+        conn.execute(f"UPDATE bot_config SET {set_clause} WHERE service = ?", values)
+    conn.close()
+    return get_bot_config(service)

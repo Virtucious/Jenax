@@ -69,6 +69,18 @@
 </head>
 <body class="bg-surface text-on-surface antialiased min-h-screen">
 
+<!-- Notification permission banner -->
+<div id="notif-banner" class="hidden fixed top-16 left-0 right-0 z-40 bg-primary/8 border-b border-primary/15 px-6 py-2 flex items-center justify-between gap-4">
+  <span class="text-xs text-primary-dim flex items-center gap-2">
+    <span class="material-symbols-outlined text-[16px]">notifications</span>
+    Get task reminders in your browser
+  </span>
+  <div class="flex items-center gap-3 flex-shrink-0">
+    <button onclick="enableNotifications()" class="text-xs font-semibold px-3 py-1 rounded-lg bg-primary text-white hover:bg-primary-dim transition-colors">Enable</button>
+    <button onclick="dismissNotifBanner()" class="text-xs text-outline hover:text-on-surface transition-colors">Dismiss</button>
+  </div>
+</div>
+
 <!-- Sidebar overlay (mobile) -->
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/40 z-30" onclick="toggleSidebar()"></div>
 
@@ -126,7 +138,20 @@
     <!-- Connections -->
     <div class="px-4 py-3 border-t border-slate-200/60">
       <div class="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Connections</div>
-      <div id="gmail-sidebar" class="flex flex-col gap-1.5">
+      <div id="gmail-sidebar" class="flex flex-col gap-1.5 mb-3">
+        <!-- Populated by JS -->
+      </div>
+      <div id="telegram-sidebar" class="flex flex-col gap-1.5">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+    <!-- Automation -->
+    <div class="px-4 py-3 border-t border-slate-200/60">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-[10px] font-bold text-outline uppercase tracking-widest">Automation</div>
+        <button onclick="openAutomationModal()" class="text-[10px] text-primary hover:text-primary-dim font-semibold transition-colors">Edit</button>
+      </div>
+      <div id="automation-sidebar" class="flex flex-col gap-1 text-[11px] text-on-surface-variant">
         <!-- Populated by JS -->
       </div>
     </div>
@@ -481,6 +506,82 @@
   </div>
 </div>
 
+<!-- Automation Settings Modal -->
+<div id="automation-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
+      <h3 class="font-semibold text-on-surface flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary text-[18px]">schedule</span>
+        Automation Settings
+      </h3>
+      <button onclick="closeAutomationModal()" class="text-outline hover:text-on-surface text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-6 flex flex-col gap-5">
+
+      <div>
+        <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Morning Plan Generation</label>
+        <div class="flex items-center gap-3">
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input id="am-toggle" type="checkbox" class="sr-only peer" checked>
+            <div class="w-10 h-5 bg-outline-variant peer-focus:ring-2 peer-focus:ring-primary/30 rounded-full peer peer-checked:bg-primary transition-colors"></div>
+            <div class="absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-5 shadow"></div>
+          </label>
+          <span class="text-xs text-on-surface-variant">at</span>
+          <input id="am-time" type="time" value="07:00"
+            class="border border-outline-variant/30 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <p class="text-[11px] text-outline mt-1">Automatically generate your daily plan</p>
+      </div>
+
+      <div>
+        <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Evening Review Reminder</label>
+        <div class="flex items-center gap-3">
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input id="pm-toggle" type="checkbox" class="sr-only peer" checked>
+            <div class="w-10 h-5 bg-outline-variant peer-focus:ring-2 peer-focus:ring-primary/30 rounded-full peer peer-checked:bg-primary transition-colors"></div>
+            <div class="absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-5 shadow"></div>
+          </label>
+          <span class="text-xs text-on-surface-variant">at</span>
+          <input id="pm-time" type="time" value="21:00"
+            class="border border-outline-variant/30 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <p class="text-[11px] text-outline mt-1">Reminder to review your day</p>
+      </div>
+
+      <div>
+        <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Email Scanning</label>
+        <div class="flex items-center gap-3">
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input id="email-alert-toggle" type="checkbox" class="sr-only peer" checked>
+            <div class="w-10 h-5 bg-outline-variant peer-focus:ring-2 peer-focus:ring-primary/30 rounded-full peer peer-checked:bg-primary transition-colors"></div>
+            <div class="absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-5 shadow"></div>
+          </label>
+          <span class="text-xs text-on-surface-variant">every 4 hours</span>
+        </div>
+        <p class="text-[11px] text-outline mt-1">Telegram alerts for high-priority items (requires Gmail)</p>
+      </div>
+
+      <div>
+        <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Timezone</label>
+        <input id="tz-input" type="text" value="UTC" placeholder="e.g. Asia/Kolkata"
+          class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        <p id="tz-error" class="hidden text-[11px] text-error mt-1"></p>
+      </div>
+
+    </div>
+    <div class="px-6 pb-6 flex gap-2">
+      <button onclick="saveAutomationSettings()"
+        class="flex-1 signature-gradient text-white font-medium py-2.5 rounded-xl text-sm shadow-md shadow-primary/20 hover:opacity-90 transition-opacity">
+        Save
+      </button>
+      <button onclick="closeAutomationModal()"
+        class="px-4 py-2.5 rounded-xl text-sm text-outline hover:text-on-surface border border-outline-variant/30 transition-colors">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-backdrop" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
   <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
     <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
@@ -572,6 +673,7 @@ function loadAll() {
   loadProgress();
   loadDailyReview();
   loadGmailStatus();
+  loadTelegramStatus();
 }
 
 // ===== Tab switching =====
@@ -1584,6 +1686,208 @@ function esc(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ===== Telegram Status =====
+
+async function loadTelegramStatus() {
+  try {
+    const res = await fetch('/api/config/telegram');
+    const data = await res.json();
+    renderTelegramSidebar(data);
+    renderAutomationSidebar(data.settings || {});
+  } catch (e) {}
+}
+
+function renderTelegramSidebar(status) {
+  const el = document.getElementById('telegram-sidebar');
+  if (!el) return;
+  if (status.connected) {
+    el.innerHTML = `
+      <div class="flex items-center gap-2 text-xs text-on-surface">
+        <span class="material-symbols-outlined text-[14px] text-blue-500">send</span>
+        <span class="flex-1">Telegram: Connected</span>
+        <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span>
+      </div>
+      <button onclick="openAutomationModal()"
+        class="text-[10px] text-primary hover:text-primary-dim font-semibold transition-colors self-start">
+        Configure →
+      </button>`;
+  } else {
+    el.innerHTML = `
+      <div class="flex items-center gap-2 text-xs text-outline">
+        <span class="material-symbols-outlined text-[14px]">send</span>
+        <span>Telegram: Not connected</span>
+      </div>
+      <button onclick="showTelegramSetup()"
+        class="text-[10px] font-bold text-primary hover:text-primary-dim transition-colors self-start">
+        Setup instructions ↗
+      </button>`;
+  }
+}
+
+function renderAutomationSidebar(settings) {
+  const el = document.getElementById('automation-sidebar');
+  if (!el) return;
+  const morning = settings.morning_plan_time || '07:00';
+  const evening = settings.evening_review_time || '21:00';
+  const emailOn = settings.send_email_alerts !== false;
+  el.innerHTML = `
+    <div class="flex items-center gap-1.5">
+      <span class="material-symbols-outlined text-[12px] text-amber-500">wb_sunny</span>
+      <span>Morning plan: ${morning}</span>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <span class="material-symbols-outlined text-[12px] text-indigo-400">nights_stay</span>
+      <span>Evening review: ${evening}</span>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <span class="material-symbols-outlined text-[12px] ${emailOn ? 'text-emerald-500' : 'text-outline-variant'}">mail</span>
+      <span>Email scan: ${emailOn ? 'Every 4 hrs' : 'Off'}</span>
+    </div>`;
+}
+
+function showTelegramSetup() {
+  alert(
+    'Telegram Bot Setup:\n\n' +
+    '1. Open Telegram and search for @BotFather\n' +
+    '2. Send /newbot and follow the prompts\n' +
+    '3. Copy the token BotFather gives you\n' +
+    '4. Add it to your .env file: TELEGRAM_BOT_TOKEN=your-token\n' +
+    '5. Restart Jenax\n' +
+    '6. Open your bot in Telegram and send /start'
+  );
+}
+
+// ===== Automation Modal =====
+
+let _automationSettings = {};
+
+async function openAutomationModal() {
+  try {
+    const res = await fetch('/api/config/telegram');
+    const data = await res.json();
+    _automationSettings = data.settings || {};
+  } catch (e) {
+    _automationSettings = {};
+  }
+  const s = _automationSettings;
+  document.getElementById('am-time').value = s.morning_plan_time || '07:00';
+  document.getElementById('pm-time').value = s.evening_review_time || '21:00';
+  document.getElementById('am-toggle').checked = s.send_morning_plan !== false;
+  document.getElementById('pm-toggle').checked = s.send_evening_reminder !== false;
+  document.getElementById('email-alert-toggle').checked = s.send_email_alerts !== false;
+  document.getElementById('tz-input').value = s.timezone || 'UTC';
+  document.getElementById('tz-error').classList.add('hidden');
+  document.getElementById('automation-modal').classList.remove('hidden');
+}
+
+function closeAutomationModal() {
+  document.getElementById('automation-modal').classList.add('hidden');
+}
+
+async function saveAutomationSettings() {
+  const morning = document.getElementById('am-time').value;
+  const evening = document.getElementById('pm-time').value;
+  const tz = document.getElementById('tz-input').value.trim();
+  const tzErr = document.getElementById('tz-error');
+
+  if (!morning || !evening) {
+    showToast('Please fill in both time fields.', 'error');
+    return;
+  }
+
+  const payload = {
+    morning_plan_time: morning,
+    evening_review_time: evening,
+    send_morning_plan: document.getElementById('am-toggle').checked,
+    send_evening_reminder: document.getElementById('pm-toggle').checked,
+    send_email_alerts: document.getElementById('email-alert-toggle').checked,
+    timezone: tz || 'UTC',
+  };
+
+  try {
+    const res = await fetch('/api/config/telegram/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      if (err.error) { showToast(err.error, 'error'); return; }
+    }
+    const updated = await res.json();
+    closeAutomationModal();
+    renderAutomationSidebar(updated);
+    showToast('Automation settings saved!');
+  } catch (e) {
+    showToast('Could not save settings.', 'error');
+  }
+}
+
+// ===== Browser Notifications =====
+
+(function initNotifications() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') return;
+  if (Notification.permission === 'denied') return;
+  if (localStorage.getItem('jenax_notifications_dismissed') === 'true') return;
+
+  setTimeout(() => {
+    const banner = document.getElementById('notif-banner');
+    if (banner) banner.classList.remove('hidden');
+  }, 5000);
+})();
+
+function enableNotifications() {
+  if (!('Notification' in window)) return;
+  Notification.requestPermission().then(permission => {
+    document.getElementById('notif-banner').classList.add('hidden');
+    if (permission === 'granted') {
+      showToast('Browser notifications enabled!');
+      scheduleNotificationChecks();
+    }
+  });
+}
+
+function dismissNotifBanner() {
+  localStorage.setItem('jenax_notifications_dismissed', 'true');
+  document.getElementById('notif-banner').classList.add('hidden');
+}
+
+function scheduleNotificationChecks() {
+  setInterval(async () => {
+    if (Notification.permission !== 'granted') return;
+    const now = new Date();
+    const hour = now.getHours();
+
+    if (hour === 12 && !sessionStorage.getItem('midday_notified')) {
+      try {
+        const res = await fetch('/api/tasks');
+        const tasks = await res.json();
+        const remaining = tasks.filter(t => !t.completed).length;
+        if (remaining > 0) {
+          new Notification('Jenax', {
+            body: `You have ${remaining} task${remaining > 1 ? 's' : ''} remaining today.`,
+            tag: 'midday-reminder',
+          });
+          sessionStorage.setItem('midday_notified', 'true');
+        }
+      } catch (e) {}
+    }
+
+    if (hour === 20 && !sessionStorage.getItem('evening_notified')) {
+      new Notification('Jenax', {
+        body: 'Time to review your day! How did it go?',
+        tag: 'evening-reminder',
+      });
+      sessionStorage.setItem('evening_notified', 'true');
+    }
+  }, 1800000);
+}
+
+if (Notification.permission === 'granted') {
+  scheduleNotificationChecks();
 }
 </script>
 </body>
