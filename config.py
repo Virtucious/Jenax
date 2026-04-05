@@ -5,3 +5,4 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 DATABASE_PATH = os.getenv("DATABASE_PATH", "jenax.db")
+GOOGLE_CREDENTIALS_PATH = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")

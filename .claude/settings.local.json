@@ -6,7 +6,16 @@
       "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"import sys; print\\(sys.executable\\)\")",
       "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"from google import genai; print\\('OK'\\)\")",
       "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -m pip install google-genai)",
-      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"from google import genai; print\\('OK', genai.__version__\\)\")"
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"from google import genai; print\\('OK', genai.__version__\\)\")",
+      "Bash(pip install:*)",
+      "Bash(python -c \"import app; print\\('app imports OK'\\)\")",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\AppData\\\\Local\\\\Python\\\\bin\\\\python.exe\" -c \"import app; print\\('app imports OK'\\)\")",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"import app; print\\('app imports OK'\\)\")",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"import gmail_client; import email_processor; print\\('all modules OK'\\)\")",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -m pip install google-auth google-auth-oauthlib google-api-python-client)",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"import app; print\\('full app imports OK'\\)\")",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"import database; database.init_db\\(\\); print\\('DB init OK'\\)\")",
+      "Bash('C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe' -c ':*)"
     ]
   }
 }

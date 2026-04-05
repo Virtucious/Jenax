@@ -65,6 +65,37 @@ def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(week_start)
             );
+
+            CREATE TABLE IF NOT EXISTS oauth_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                service TEXT UNIQUE NOT NULL,
+                token_json TEXT NOT NULL,
+                email TEXT,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS email_digests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date DATE NOT NULL DEFAULT (date('now')),
+                emails_scanned INTEGER DEFAULT 0,
+                ai_summary TEXT,
+                raw_emails_json TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(date)
+            );
+
+            CREATE TABLE IF NOT EXISTS email_action_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                digest_id INTEGER REFERENCES email_digests(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                description TEXT,
+                priority TEXT,
+                source_subject TEXT,
+                source_sender TEXT,
+                status TEXT DEFAULT 'pending',
+                task_id INTEGER REFERENCES daily_tasks(id) ON DELETE SET NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
     # Schema migrations — safe to re-run
@@ -78,6 +109,15 @@ def init_db():
                 conn.execute(sql)
         except Exception:
             pass
+
+    # Clean up email digests older than 7 days
+    with conn:
+        conn.execute(
+            """DELETE FROM email_action_items WHERE digest_id IN (
+                SELECT id FROM email_digests WHERE date < date('now', '-7 days')
+            )"""
+        )
+        conn.execute("DELETE FROM email_digests WHERE date < date('now', '-7 days')")
 
     conn.close()
 
@@ -659,3 +699,134 @@ def get_previous_weekly_review(before_week_start):
             except Exception:
                 pass
     return d
+
+
+# ---------------------------------------------------------------------------
+# OAuth Tokens
+# ---------------------------------------------------------------------------
+
+def save_oauth_token(service, token_json, email=None):
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            """INSERT INTO oauth_tokens (service, token_json, email, updated_at)
+               VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(service) DO UPDATE SET
+                   token_json = excluded.token_json,
+                   email = COALESCE(excluded.email, email),
+                   updated_at = CURRENT_TIMESTAMP""",
+            (service, token_json, email),
+        )
+    conn.close()
+
+
+def get_oauth_token(service):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM oauth_tokens WHERE service = ?", (service,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def delete_oauth_token(service):
+    conn = get_connection()
+    with conn:
+        conn.execute("DELETE FROM oauth_tokens WHERE service = ?", (service,))
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Email Digests & Action Items
+# ---------------------------------------------------------------------------
+
+def upsert_email_digest(date_str, emails_scanned, ai_summary, raw_emails_json):
+    conn = get_connection()
+    with conn:
+        cur = conn.execute(
+            """INSERT INTO email_digests (date, emails_scanned, ai_summary, raw_emails_json)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(date) DO UPDATE SET
+                   emails_scanned = excluded.emails_scanned,
+                   ai_summary = excluded.ai_summary,
+                   raw_emails_json = excluded.raw_emails_json""",
+            (date_str, emails_scanned, ai_summary, raw_emails_json),
+        )
+        # Get the id of the upserted row
+        row = conn.execute(
+            "SELECT id FROM email_digests WHERE date = ?", (date_str,)
+        ).fetchone()
+        digest_id = row["id"]
+    conn.close()
+    return digest_id
+
+
+def get_email_digest_for_date(date_str):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM email_digests WHERE date = ?", (date_str,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    digest = dict(row)
+    items = conn.execute(
+        "SELECT * FROM email_action_items WHERE digest_id = ? ORDER BY priority DESC, created_at ASC",
+        (digest["id"],),
+    ).fetchall()
+    conn.close()
+    digest["action_items"] = [dict(i) for i in items]
+    return digest
+
+
+def save_email_action_items(digest_id, action_items):
+    """Replace all action items for a digest (called on rescan)."""
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            "DELETE FROM email_action_items WHERE digest_id = ?", (digest_id,)
+        )
+        for item in action_items:
+            conn.execute(
+                """INSERT INTO email_action_items
+                   (digest_id, title, description, priority, source_subject, source_sender)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (digest_id, item.get("title"), item.get("description"),
+                 item.get("priority", "medium"), item.get("source_subject"),
+                 item.get("source_sender")),
+            )
+    conn.close()
+
+
+def get_email_action_item(item_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM email_action_items WHERE id = ?", (item_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def update_email_action_item(item_id, status, task_id=None):
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            "UPDATE email_action_items SET status = ?, task_id = COALESCE(?, task_id) WHERE id = ?",
+            (status, task_id, item_id),
+        )
+    conn.close()
+    return get_email_action_item(item_id)
+
+
+def get_pending_email_action_items(date_str):
+    """Return pending email action items for the given date."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT eai.* FROM email_action_items eai
+           JOIN email_digests ed ON eai.digest_id = ed.id
+           WHERE ed.date = ? AND eai.status = 'pending'
+           ORDER BY eai.priority DESC, eai.created_at ASC""",
+        (date_str,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

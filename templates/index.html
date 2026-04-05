@@ -123,6 +123,13 @@
         Add Goal
       </button>
     </div>
+    <!-- Connections -->
+    <div class="px-4 py-3 border-t border-slate-200/60">
+      <div class="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Connections</div>
+      <div id="gmail-sidebar" class="flex flex-col gap-1.5">
+        <!-- Populated by JS -->
+      </div>
+    </div>
   </aside>
 
   <!-- Main content -->
@@ -155,6 +162,48 @@
             <div class="w-6 h-[1px] bg-primary/30"></div>
             <span class="text-[10px] text-primary/60 uppercase font-medium">AI Generated</span>
           </div>
+        </div>
+
+        <!-- Email Digest section (only shown when Gmail connected) -->
+        <div id="email-digest-section" class="hidden bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/5 flex items-center justify-between">
+            <h2 class="text-sm font-semibold tracking-tight text-on-surface flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px] text-primary">mail</span>
+              Email Digest
+            </h2>
+            <div class="flex items-center gap-2">
+              <button id="email-rescan-btn" onclick="scanEmails()" class="hidden text-[10px] uppercase tracking-widest font-bold text-outline hover:text-on-surface transition-colors">Rescan</button>
+              <button id="email-scan-btn" onclick="scanEmails()"
+                class="signature-gradient text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-sm shadow-primary/20 hover:scale-[1.02] transition-transform flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[14px]">refresh</span>
+                Scan Emails
+              </button>
+              <span id="email-scan-status" class="hidden text-sm text-slate-500">
+                <svg class="w-4 h-4 inline animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"></path>
+                </svg>
+              </span>
+            </div>
+          </div>
+          <!-- Empty state -->
+          <div id="email-empty-state" class="p-6 text-sm text-outline italic">
+            Scan your recent emails to find action items and get a summary.
+          </div>
+          <!-- Digest content -->
+          <div id="email-digest-content" class="hidden p-6 flex flex-col gap-4">
+            <!-- Summary + categories -->
+            <div class="bg-primary/5 rounded-xl border border-primary/10 p-4">
+              <p id="email-summary-text" class="text-sm text-on-surface leading-relaxed mb-3"></p>
+              <div id="email-categories" class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-on-surface-variant"></div>
+            </div>
+            <!-- Action items -->
+            <div id="email-action-items-wrap">
+              <div class="text-[10px] font-bold text-outline uppercase tracking-widest mb-2" id="email-action-label">Action Items</div>
+              <div id="email-action-list" class="flex flex-col gap-2"></div>
+            </div>
+          </div>
+          <span id="email-error-msg" class="hidden text-sm text-error p-4 block"></span>
         </div>
 
         <!-- Carry-forward banner -->
@@ -403,6 +452,35 @@
 </div>
 
 <!-- Goal Modal -->
+<!-- Privacy Notice Modal -->
+<div id="email-privacy-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary text-[20px]">mail</span>
+      <h3 class="font-semibold text-on-surface">Email Processing Notice</h3>
+    </div>
+    <div class="p-6 flex flex-col gap-3 text-sm text-on-surface-variant leading-relaxed">
+      <p>To summarize your emails and extract action items, your email content will be sent to Google's Gemini API for processing.</p>
+      <ul class="flex flex-col gap-1.5 pl-1">
+        <li class="flex items-start gap-2"><span class="text-primary mt-0.5">•</span>Emails are processed in real-time and not stored on any external server</li>
+        <li class="flex items-start gap-2"><span class="text-primary mt-0.5">•</span>Only the last 24 hours of emails are read</li>
+        <li class="flex items-start gap-2"><span class="text-primary mt-0.5">•</span>Automated and marketing emails are filtered out before processing</li>
+        <li class="flex items-start gap-2"><span class="text-primary mt-0.5">•</span>You can disconnect Gmail at any time</li>
+      </ul>
+    </div>
+    <div class="px-6 pb-6 flex gap-2">
+      <button onclick="acceptPrivacyNotice()"
+        class="flex-1 signature-gradient text-white font-medium py-2.5 rounded-xl text-sm shadow-md shadow-primary/20 hover:opacity-90 transition-opacity">
+        I Understand, Continue
+      </button>
+      <button onclick="document.getElementById('email-privacy-modal').classList.add('hidden')"
+        class="px-4 py-2.5 rounded-xl text-sm text-outline hover:text-on-surface border border-outline-variant/30 transition-colors">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-backdrop" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
   <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
     <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
@@ -493,6 +571,7 @@ function loadAll() {
   loadTasks();
   loadProgress();
   loadDailyReview();
+  loadGmailStatus();
 }
 
 // ===== Tab switching =====
@@ -1274,6 +1353,227 @@ async function renderWeekHeatmap(weekStartIso) {
       </div>`);
   }
   heatmap.innerHTML = cells.join('');
+}
+
+// ===== Gmail / Email Digest =====
+
+async function loadGmailStatus() {
+  try {
+    const res = await fetch('/auth/gmail/status');
+    const data = await res.json();
+    renderGmailSidebar(data);
+    if (data.connected) {
+      document.getElementById('email-digest-section').classList.remove('hidden');
+      loadEmailDigest();
+    }
+    // Handle OAuth redirect params
+    const params = new URLSearchParams(window.location.search);
+    const gmailParam = params.get('gmail');
+    if (gmailParam === 'connected') {
+      showToast('Gmail connected successfully!');
+      window.history.replaceState({}, '', '/');
+    } else if (gmailParam === 'denied') {
+      showToast('Gmail access was not granted.', 'error');
+      window.history.replaceState({}, '', '/');
+    } else if (gmailParam === 'no_credentials') {
+      showToast('To connect Gmail, follow the setup guide in README.md.', 'error');
+      window.history.replaceState({}, '', '/');
+    }
+  } catch (e) {}
+}
+
+function renderGmailSidebar(status) {
+  const el = document.getElementById('gmail-sidebar');
+  if (status.connected) {
+    el.innerHTML = `
+      <div class="flex items-center gap-2 text-xs text-on-surface">
+        <span class="material-symbols-outlined text-[14px] text-emerald-500">mail</span>
+        <span class="truncate flex-1" title="${esc(status.email || '')}">${esc(status.email || 'Gmail')}</span>
+        <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span>
+      </div>
+      <button onclick="disconnectGmail()"
+        class="text-[10px] text-outline hover:text-error transition-colors self-start">
+        Disconnect
+      </button>`;
+  } else {
+    el.innerHTML = `
+      <div class="flex items-center gap-2 text-xs text-outline">
+        <span class="material-symbols-outlined text-[14px]">mail</span>
+        <span>Gmail: Not connected</span>
+      </div>
+      <a href="/auth/gmail/connect"
+        class="text-[10px] font-bold text-primary hover:text-primary-dim transition-colors self-start">
+        Connect Gmail →
+      </a>`;
+  }
+}
+
+async function disconnectGmail() {
+  if (!confirm('Disconnect Gmail? You can reconnect at any time.')) return;
+  await fetch('/auth/gmail/disconnect', { method: 'POST' });
+  document.getElementById('email-digest-section').classList.add('hidden');
+  renderGmailSidebar({ connected: false });
+}
+
+async function loadEmailDigest() {
+  const today = new Date().toISOString().split('T')[0];
+  const res = await fetch(`/api/email/digest?date=${today}`);
+  const digest = await res.json();
+  if (digest && digest.ai_summary) {
+    renderEmailDigest(digest);
+  }
+}
+
+function scanEmails() {
+  if (localStorage.getItem('jenax_email_notice_accepted') !== 'true') {
+    document.getElementById('email-privacy-modal').classList.remove('hidden');
+    return;
+  }
+  doScanEmails();
+}
+
+function acceptPrivacyNotice() {
+  localStorage.setItem('jenax_email_notice_accepted', 'true');
+  document.getElementById('email-privacy-modal').classList.add('hidden');
+  doScanEmails();
+}
+
+async function doScanEmails() {
+  const scanBtn = document.getElementById('email-scan-btn');
+  const rescanBtn = document.getElementById('email-rescan-btn');
+  const statusEl = document.getElementById('email-scan-status');
+  const errorEl = document.getElementById('email-error-msg');
+
+  scanBtn.disabled = true;
+  scanBtn.classList.add('opacity-50');
+  statusEl.classList.remove('hidden');
+  errorEl.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/email/scan', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || 'Failed to scan emails.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    renderEmailDigest(data);
+  } catch (e) {
+    errorEl.textContent = 'Failed to scan emails. Please try again.';
+    errorEl.classList.remove('hidden');
+  } finally {
+    scanBtn.disabled = false;
+    scanBtn.classList.remove('opacity-50');
+    statusEl.classList.add('hidden');
+    rescanBtn.classList.remove('hidden');
+    scanBtn.classList.add('hidden');
+  }
+}
+
+function renderEmailDigest(digest) {
+  document.getElementById('email-empty-state').classList.add('hidden');
+  document.getElementById('email-digest-content').classList.remove('hidden');
+  document.getElementById('email-rescan-btn').classList.remove('hidden');
+  document.getElementById('email-scan-btn').classList.add('hidden');
+
+  document.getElementById('email-summary-text').textContent = digest.ai_summary || '';
+
+  // Categories
+  const cats = digest.categories || {};
+  const catEl = document.getElementById('email-categories');
+  const catItems = [
+    { icon: '📩', label: 'Needs reply', key: 'needs_reply' },
+    { icon: '⚡', label: 'Action', key: 'action_required' },
+    { icon: '📄', label: 'Info', key: 'informational' },
+    { icon: '🗑', label: 'Ignore', key: 'can_ignore' },
+  ];
+  catEl.innerHTML = catItems.map(c =>
+    `<span>${c.icon} ${c.label}: <strong>${cats[c.key] ?? 0}</strong></span>`
+  ).join('');
+
+  // Action items
+  const items = (digest.action_items || []).filter(i => i.status === 'pending');
+  const labelEl = document.getElementById('email-action-label');
+  const listEl = document.getElementById('email-action-list');
+
+  if (items.length === 0) {
+    labelEl.classList.add('hidden');
+    listEl.innerHTML = '<p class="text-sm text-outline italic">All caught up! ✓</p>';
+    return;
+  }
+
+  labelEl.classList.remove('hidden');
+  labelEl.textContent = `Action Items (${items.length})`;
+  listEl.innerHTML = items.map(item => renderActionItem(item)).join('');
+}
+
+function priorityDot(priority) {
+  const colors = { high: 'bg-red-500', medium: 'bg-yellow-400', low: 'bg-emerald-400' };
+  return `<span class="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ${colors[priority] || 'bg-outline-variant'}"></span>`;
+}
+
+function renderActionItem(item) {
+  return `
+  <div id="action-item-${item.id}" class="border border-outline-variant/20 rounded-xl p-4 flex gap-3 bg-surface-container-low/30">
+    ${priorityDot(item.priority)}
+    <div class="flex-1 min-w-0">
+      <div class="text-sm font-medium text-on-surface">${esc(item.title)}</div>
+      ${item.source_sender ? `<div class="text-xs text-outline mt-0.5">From: ${esc(item.source_sender)}${item.source_subject ? ` — ${esc(item.source_subject)}` : ''}</div>` : ''}
+      ${item.description ? `<div class="text-xs text-on-surface-variant mt-1 leading-relaxed">${esc(item.description)}</div>` : ''}
+      <div class="flex gap-2 mt-3">
+        <button onclick="acceptActionItem(${item.id})"
+          class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-white hover:bg-primary-dim transition-colors">
+          Accept
+        </button>
+        <button onclick="dismissActionItem(${item.id})"
+          class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-outline-variant/30 text-outline hover:text-on-surface transition-colors">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function acceptActionItem(id) {
+  const res = await fetch(`/api/email/action/${id}/accept`, { method: 'PATCH' });
+  if (res.ok) {
+    removeActionItemCard(id);
+    await loadTasks(); // refresh task list
+  }
+}
+
+async function dismissActionItem(id) {
+  const res = await fetch(`/api/email/action/${id}/dismiss`, { method: 'PATCH' });
+  if (res.ok) {
+    removeActionItemCard(id);
+  }
+}
+
+function removeActionItemCard(id) {
+  const card = document.getElementById(`action-item-${id}`);
+  if (card) {
+    card.style.transition = 'opacity 0.25s, transform 0.25s';
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(-4px)';
+    setTimeout(() => {
+      card.remove();
+      // Check if all items handled
+      const listEl = document.getElementById('email-action-list');
+      if (listEl && listEl.querySelectorAll('[id^="action-item-"]').length === 0) {
+        document.getElementById('email-action-label').classList.add('hidden');
+        listEl.innerHTML = '<p class="text-sm text-outline italic">All caught up! ✓</p>';
+      }
+    }, 250);
+  }
+}
+
+function showToast(msg, type = 'success') {
+  const toast = document.createElement('div');
+  const bg = type === 'error' ? 'bg-error text-on-error' : 'bg-primary text-on-primary';
+  toast.className = `fixed bottom-6 right-6 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${bg} transition-opacity`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
 // ===== Utilities =====

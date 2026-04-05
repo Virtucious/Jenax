@@ -1,4 +1,5 @@
-from flask import Flask, jsonify, request, render_template
+import json
+from flask import Flask, jsonify, request, render_template, redirect
 from datetime import date
 
 import database as db
@@ -241,6 +242,137 @@ def list_weekly_reviews():
 def get_progress():
     days = int(request.args.get("days", 30))
     return jsonify(db.get_progress_data(days))
+
+
+# ---------------------------------------------------------------------------
+# Gmail OAuth
+# ---------------------------------------------------------------------------
+
+@app.route("/auth/gmail/status", methods=["GET"])
+def gmail_status():
+    import gmail_client
+    return jsonify(gmail_client.is_connected())
+
+
+@app.route("/auth/gmail/connect", methods=["GET"])
+def gmail_connect():
+    from config import GOOGLE_CREDENTIALS_PATH
+    if not GOOGLE_CREDENTIALS_PATH:
+        return redirect("/?gmail=no_credentials")
+    import gmail_client
+    auth_url, _ = gmail_client.get_auth_url()
+    if not auth_url:
+        return redirect("/?gmail=no_credentials")
+    return redirect(auth_url)
+
+
+@app.route("/auth/gmail/callback", methods=["GET"])
+def gmail_callback():
+    code = request.args.get("code")
+    error = request.args.get("error")
+    if error or not code:
+        return redirect("/?gmail=denied")
+    try:
+        import gmail_client
+        gmail_client.handle_callback(code)
+        return redirect("/?gmail=connected")
+    except Exception as e:
+        return redirect(f"/?gmail=error")
+
+
+@app.route("/auth/gmail/disconnect", methods=["POST"])
+def gmail_disconnect():
+    import gmail_client
+    gmail_client.disconnect()
+    return jsonify({"success": True})
+
+
+# ---------------------------------------------------------------------------
+# Email API
+# ---------------------------------------------------------------------------
+
+@app.route("/api/email/scan", methods=["POST"])
+def email_scan():
+    from config import GEMINI_API_KEY
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "GEMINI_API_KEY is not configured"}), 503
+
+    import gmail_client, email_processor
+    status = gmail_client.is_connected()
+    if not status["connected"]:
+        return jsonify({"error": "Gmail not connected", "code": "NOT_CONNECTED"}), 400
+
+    try:
+        emails = gmail_client.fetch_recent_emails(hours=24, max_results=50)
+    except Exception as e:
+        err_str = str(e)
+        if "403" in err_str:
+            return jsonify({"error": "Insufficient Gmail permissions. Please reconnect.", "code": "FORBIDDEN"}), 403
+        if "429" in err_str:
+            return jsonify({"error": "Too many requests, try again in a minute.", "code": "RATE_LIMITED"}), 429
+        return jsonify({"error": f"Failed to fetch emails: {err_str}"}), 502
+
+    if emails is None:
+        return jsonify({"error": "Gmail not connected", "code": "NOT_CONNECTED"}), 400
+
+    try:
+        result = email_processor.process_emails(emails)
+    except Exception as e:
+        # Still save raw emails so user can retry without re-fetching
+        today = date.today().isoformat()
+        digest_id = db.upsert_email_digest(
+            today, len(emails), None, json.dumps(emails)
+        )
+        return jsonify({"error": f"Could not process emails — try again: {str(e)}"}), 502
+
+    today = date.today().isoformat()
+    digest_id = db.upsert_email_digest(
+        today,
+        len(emails),
+        result.get("summary"),
+        json.dumps(emails),
+    )
+    db.save_email_action_items(digest_id, result.get("action_items", []))
+
+    digest = db.get_email_digest_for_date(today)
+    digest["categories"] = result.get("categories", {})
+    return jsonify(digest)
+
+
+@app.route("/api/email/digest", methods=["GET"])
+def email_digest():
+    date_str = request.args.get("date", date.today().isoformat())
+    digest = db.get_email_digest_for_date(date_str)
+    if not digest:
+        return jsonify(None)
+    return jsonify(digest)
+
+
+@app.route("/api/email/action/<int:item_id>/accept", methods=["PATCH"])
+def email_action_accept(item_id):
+    item = db.get_email_action_item(item_id)
+    if not item:
+        return jsonify({"error": "Action item not found"}), 404
+
+    task = db.create_task(
+        title=item["title"],
+        description=item.get("description"),
+        priority=item.get("priority", "medium"),
+        goal_id=None,
+        date_str=date.today().isoformat(),
+        source="email",
+    )
+    db.update_email_action_item(item_id, status="accepted", task_id=task["id"])
+    return jsonify(task), 201
+
+
+@app.route("/api/email/action/<int:item_id>/dismiss", methods=["PATCH"])
+def email_action_dismiss(item_id):
+    item = db.get_email_action_item(item_id)
+    if not item:
+        return jsonify({"error": "Action item not found"}), 404
+    db.update_email_action_item(item_id, status="dismissed")
+    return jsonify({"success": True})
 
 
 # ---------------------------------------------------------------------------

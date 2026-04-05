@@ -42,3 +42,10 @@ desktop.ini
 
 # Misc
 *.log
+
+# Gmail OAuth credentials (contains secrets — never commit)
+credentials.json
+token.json
+*_credentials.json
+*_token.json
+client_secret*.json

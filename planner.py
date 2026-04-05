@@ -61,7 +61,8 @@ def _call_gemini_with_retry(prompt):
 
 def _build_prompt(active_goals, history, today_tasks,
                   yesterday_reflection=None, last_weekly_review=None,
-                  carried_tasks=None, dow_patterns=None):
+                  carried_tasks=None, dow_patterns=None,
+                  pending_email_items=None):
     yearly = [g for g in active_goals if g["level"] == "yearly"]
     monthly = [g for g in active_goals if g["level"] == "monthly"]
     weekly = [g for g in active_goals if g["level"] == "weekly"]
@@ -145,6 +146,19 @@ def _build_prompt(active_goals, history, today_tasks,
             if today_pattern:
                 extra_context += f"\nToday is {today_dow} (historically ~{today_pattern['avg_pct']}% completion)."
 
+    if pending_email_items:
+        item_lines = [
+            f"- [{i['priority']}] {i['title']} (from: {i.get('source_sender', '?')}, re: {i.get('source_subject', '?')})"
+            for i in pending_email_items
+        ]
+        extra_context += (
+            "\n\n## Pending Email Action Items\n"
+            "The user's inbox has these unhandled action items:\n"
+            + "\n".join(item_lines)
+            + "\nConsider incorporating high-priority email actions into today's task list. "
+            "Do NOT duplicate them — just factor them into your prioritization."
+        )
+
     carry_rules = ""
     if carried_tasks:
         heavy = [t for t in carried_tasks if (t.get("carry_count") or 0) >= 3]
@@ -203,12 +217,16 @@ def generate_daily_plan():
     carried_tasks = [t for t in today_tasks if t.get("is_carried")]
     dow_patterns = db.get_day_of_week_patterns()
 
+    # Phase 3: pending email action items
+    pending_email_items = db.get_pending_email_action_items(date.today().isoformat())
+
     prompt = _build_prompt(
         active_goals, history, today_tasks,
         yesterday_reflection=yesterday_reflection,
         last_weekly_review=last_weekly_review,
         carried_tasks=carried_tasks if carried_tasks else None,
         dow_patterns=dow_patterns if dow_patterns else None,
+        pending_email_items=pending_email_items if pending_email_items else None,
     )
 
     try:
