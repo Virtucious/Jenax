@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip uninstall:*)",
+      "Bash(where python:*)",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"from google import genai; print\\('OK'\\)\")",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -m pip install google-genai)",
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -c \"from google import genai; print\\('OK', genai.__version__\\)\")"
+    ]
+  }
+}

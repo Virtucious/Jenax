@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jenax — Daily Planner</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary":                  "#44636f",
+            "primary-dim":              "#385763",
+            "primary-container":        "#c7e8f6",
+            "on-primary":               "#eff9ff",
+            "on-primary-container":     "#375662",
+            "secondary":                "#5b6063",
+            "on-secondary":             "#f5f9fd",
+            "secondary-container":      "#dfe3e7",
+            "on-secondary-container":   "#4d5256",
+            "tertiary":                 "#526077",
+            "on-tertiary":              "#f8f8ff",
+            "tertiary-container":       "#c7d5f1",
+            "on-tertiary-container":    "#3c4a60",
+            "surface":                  "#f7f9fb",
+            "surface-variant":          "#d9e4ea",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low":    "#f0f4f7",
+            "surface-container":        "#e8eff3",
+            "surface-container-high":   "#e1e9ee",
+            "surface-container-highest":"#d9e4ea",
+            "on-surface":               "#2a3439",
+            "on-surface-variant":       "#566166",
+            "background":               "#f7f9fb",
+            "on-background":            "#2a3439",
+            "outline":                  "#717c82",
+            "outline-variant":          "#a9b4b9",
+            "error":                    "#9f403d",
+            "error-container":          "#fe8983",
+            "on-error":                 "#fff7f6",
+          },
+          fontFamily: {
+            "sans": ["Inter", "sans-serif"],
+          }
+        },
+      },
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+    }
+    .signature-gradient {
+      background: linear-gradient(135deg, #44636f 0%, #385763 100%);
+    }
+    .glass-overlay {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(20px);
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface antialiased min-h-screen">
+
+<!-- Sidebar overlay (mobile) -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-black/40 z-30" onclick="toggleSidebar()"></div>
+
+<!-- Navbar -->
+<nav class="fixed top-0 w-full z-50 glass-overlay shadow-sm shadow-slate-200/50 flex items-center justify-between px-6 h-16">
+  <div class="flex items-center gap-4">
+    <button id="hamburger-btn" class="md:hidden p-1" onclick="toggleSidebar()">
+      <span class="material-symbols-outlined text-slate-600">menu</span>
+    </button>
+    <span class="text-lg font-semibold tracking-tighter text-slate-800">Jenax</span>
+    <span class="text-slate-400 text-sm hidden lg:block" id="nav-date"></span>
+  </div>
+  <!-- Desktop tab links -->
+  <div class="hidden md:flex gap-x-8 items-center h-full">
+    <button id="tab-btn-today" onclick="switchTab('today')"
+      class="tab-btn text-slate-900 font-medium border-b-2 border-slate-900 h-full flex items-center px-1 transition-colors duration-300 text-sm">
+      Today
+    </button>
+    <button id="tab-btn-weekly" onclick="switchTab('weekly')"
+      class="tab-btn text-slate-500 hover:text-slate-800 border-b-2 border-transparent h-full flex items-center px-1 transition-colors duration-300 text-sm">
+      Weekly Review
+    </button>
+  </div>
+  <!-- Right spacer -->
+  <div class="hidden md:block w-24"></div>
+</nav>
+
+<!-- Layout wrapper -->
+<div class="flex min-h-screen">
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 pt-16 border-r border-slate-200/60 bg-slate-50 flex flex-col z-20">
+    <!-- Workspace header -->
+    <div class="px-4 py-5 border-b border-slate-200/60 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-white text-[18px]">target</span>
+      </div>
+      <div>
+        <div class="text-sm font-semibold text-on-surface">Goals</div>
+        <div class="text-[10px] uppercase tracking-widest font-medium text-slate-400">Your workspace</div>
+      </div>
+    </div>
+    <!-- Goal tree -->
+    <div id="goal-tree" class="p-3 flex-1 overflow-y-auto no-scrollbar">
+      <p class="text-slate-400 text-sm italic px-2">Loading goals…</p>
+    </div>
+    <!-- Add Goal CTA -->
+    <div class="p-4 border-t border-slate-200/60">
+      <button onclick="openGoalModal()"
+        class="w-full signature-gradient text-white rounded-xl py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-medium shadow-md shadow-primary/20 hover:scale-[1.02] transition-transform">
+        <span class="material-symbols-outlined text-[18px]">add</span>
+        Add Goal
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="flex-1 ml-64 pt-16 min-h-screen">
+
+    <!-- Mobile tab bar -->
+    <div class="md:hidden flex border-b border-slate-200/60 bg-white sticky top-16 z-10">
+      <button id="tab-btn-today-m" onclick="switchTab('today')"
+        class="flex-1 py-2.5 text-sm font-medium text-primary border-b-2 border-primary">
+        Today
+      </button>
+      <button id="tab-btn-weekly-m" onclick="switchTab('weekly')"
+        class="flex-1 py-2.5 text-sm font-medium text-outline border-b-2 border-transparent">
+        Weekly Review
+      </button>
+    </div>
+
+    <div class="px-6 md:px-10 py-8 flex flex-col gap-6">
+
+      <!-- ================================================================ -->
+      <!-- TODAY TAB -->
+      <!-- ================================================================ -->
+      <div id="tab-today" class="flex flex-col gap-6">
+
+        <!-- Daily Insight card -->
+        <div id="insight-card" class="hidden bg-primary/5 rounded-xl border border-primary/10 p-6">
+          <div class="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-2">Daily Insight</div>
+          <p id="insight-text" class="text-sm text-primary-dim leading-relaxed italic"></p>
+          <div class="mt-3 flex items-center gap-2">
+            <div class="w-6 h-[1px] bg-primary/30"></div>
+            <span class="text-[10px] text-primary/60 uppercase font-medium">AI Generated</span>
+          </div>
+        </div>
+
+        <!-- Carry-forward banner -->
+        <div id="carry-banner" class="hidden bg-amber-50 border border-amber-200/60 rounded-xl px-5 py-4 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-amber-500">history</span>
+            <span id="carry-banner-text" class="text-sm text-amber-800 font-medium"></span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="carry-btn" onclick="carryForward()"
+              class="bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+              Review →
+            </button>
+            <button onclick="dismissCarryBanner()" class="text-amber-400 hover:text-amber-600 text-lg leading-none">×</button>
+          </div>
+        </div>
+
+        <!-- Generate button -->
+        <div class="flex items-center gap-3">
+          <button id="generate-btn" onclick="generatePlan()"
+            class="signature-gradient text-white font-medium px-5 py-2.5 rounded-xl shadow-md shadow-primary/20 hover:scale-[1.02] transition-transform flex items-center gap-2 text-sm">
+            <span class="material-symbols-outlined text-[18px]">auto_awesome</span>
+            Generate Today's Plan
+          </button>
+          <span id="generate-status" class="text-sm text-slate-500 hidden">
+            <svg class="w-4 h-4 inline animate-spin mr-1" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"></path>
+            </svg>
+            Planning your day…
+          </span>
+          <span id="error-msg" class="text-sm text-error hidden"></span>
+        </div>
+
+        <!-- Task list -->
+        <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/5 flex items-center justify-between">
+            <h2 class="text-sm font-semibold tracking-tight text-on-surface">Today's Tasks</h2>
+            <button onclick="showAddTaskForm()" class="text-[10px] uppercase tracking-widest font-bold text-primary hover:text-primary-dim transition-colors">+ Add Task</button>
+          </div>
+
+          <!-- Inline add-task form -->
+          <div id="add-task-form" class="hidden px-6 py-4 border-b border-outline-variant/5 bg-surface-container-low/40">
+            <div class="flex flex-col gap-2.5">
+              <input id="new-task-title" type="text" placeholder="Task title…"
+                class="border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white" />
+              <div class="flex gap-2">
+                <select id="new-task-priority" class="border border-outline-variant/30 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
+                  <option value="high">High</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="low">Low</option>
+                </select>
+                <select id="new-task-goal" class="border border-outline-variant/30 rounded-xl px-3 py-1.5 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
+                  <option value="">No goal</option>
+                </select>
+                <button onclick="submitAddTask()" class="signature-gradient text-white px-4 py-1.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">Add</button>
+                <button onclick="hideAddTaskForm()" class="text-outline hover:text-on-surface px-2 py-1.5 text-sm transition-colors">Cancel</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Carried tasks section -->
+          <div id="carried-section" class="hidden">
+            <div class="px-6 py-2 bg-amber-50 border-b border-amber-100/60">
+              <span class="text-[10px] font-bold text-amber-600 uppercase tracking-widest">↩ Carried from yesterday</span>
+            </div>
+            <div id="carried-list" class="divide-y divide-outline-variant/5"></div>
+            <div class="px-6 py-2 border-b border-outline-variant/5 bg-surface-container-low/30">
+              <span class="text-[10px] font-bold text-outline uppercase tracking-widest">Today's tasks</span>
+            </div>
+          </div>
+
+          <div id="task-list" class="divide-y divide-outline-variant/5">
+            <p class="text-outline text-sm italic p-6">No tasks yet. Generate a plan or add tasks manually.</p>
+          </div>
+        </div>
+
+        <!-- End-of-Day Review section -->
+        <div id="eod-section" class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/5 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm font-semibold tracking-tight text-on-surface">End of Day Review</h2>
+              <span id="eod-prominence" class="hidden text-[10px] bg-primary/10 text-primary px-2.5 py-0.5 rounded-full font-bold uppercase tracking-widest">Now's a good time!</span>
+            </div>
+            <button id="redo-review-btn" class="hidden text-[10px] uppercase tracking-widest font-bold text-outline hover:text-on-surface transition-colors" onclick="showReviewForm()">Redo</button>
+          </div>
+
+          <!-- Review form -->
+          <div id="review-form" class="p-6 flex flex-col gap-4">
+            <div>
+              <div class="text-[10px] font-bold text-outline uppercase tracking-widest mb-3">How did today feel?</div>
+              <div class="flex gap-2" id="mood-selector">
+                <button onclick="selectMood('bad')"    data-mood="bad"   class="mood-btn flex-1 py-2.5 rounded-xl border-2 border-outline-variant/20 hover:border-primary/40 text-center text-xl transition-all bg-surface-container-low/30" title="Bad">😫</button>
+                <button onclick="selectMood('rough')"  data-mood="rough" class="mood-btn flex-1 py-2.5 rounded-xl border-2 border-outline-variant/20 hover:border-primary/40 text-center text-xl transition-all bg-surface-container-low/30" title="Rough">😕</button>
+                <button onclick="selectMood('okay')"   data-mood="okay"  class="mood-btn flex-1 py-2.5 rounded-xl border-2 border-outline-variant/20 hover:border-primary/40 text-center text-xl transition-all bg-surface-container-low/30" title="Okay">😐</button>
+                <button onclick="selectMood('good')"   data-mood="good"  class="mood-btn flex-1 py-2.5 rounded-xl border-2 border-outline-variant/20 hover:border-primary/40 text-center text-xl transition-all bg-surface-container-low/30" title="Good">🙂</button>
+                <button onclick="selectMood('great')"  data-mood="great" class="mood-btn flex-1 py-2.5 rounded-xl border-2 border-outline-variant/20 hover:border-primary/40 text-center text-xl transition-all bg-surface-container-low/30" title="Great">😊</button>
+              </div>
+            </div>
+            <div>
+              <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">Notes <span class="font-normal normal-case tracking-normal text-xs text-slate-400">(optional)</span></label>
+              <textarea id="review-notes" rows="2" placeholder="What happened, what got in the way…"
+                class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white resize-none"></textarea>
+            </div>
+            <div class="flex items-center gap-3">
+              <button onclick="submitDailyReview()" id="review-btn"
+                class="signature-gradient text-white font-medium px-5 py-2.5 rounded-xl text-sm shadow-md shadow-primary/20 hover:scale-[1.02] transition-transform flex items-center gap-2">
+                <span class="material-symbols-outlined text-[18px]">rate_review</span>
+                Review My Day
+              </button>
+              <span id="review-status" class="text-sm text-slate-500 hidden">
+                <svg class="w-4 h-4 inline animate-spin mr-1" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"></path>
+                </svg>
+                Generating review…
+              </span>
+              <span id="review-error" class="text-sm text-error hidden"></span>
+            </div>
+          </div>
+
+          <!-- Review result card -->
+          <div id="review-result" class="hidden p-6 flex flex-col gap-4">
+            <p id="review-reflection" class="text-on-surface text-sm leading-relaxed font-medium"></p>
+            <div id="review-patterns-box" class="hidden bg-primary/5 border border-primary/10 rounded-xl px-4 py-3">
+              <div class="text-[10px] font-bold text-primary uppercase tracking-widest mb-1.5">Pattern noticed</div>
+              <p id="review-patterns" class="text-on-surface text-sm"></p>
+            </div>
+            <div id="review-suggestions-box" class="hidden">
+              <div class="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">For tomorrow</div>
+              <ul id="review-suggestions" class="flex flex-col gap-1.5"></ul>
+            </div>
+            <p id="review-encouragement" class="text-sm italic text-primary"></p>
+          </div>
+        </div>
+
+        <!-- Progress section -->
+        <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/5">
+            <span class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary">Progress</span>
+          </div>
+          <div class="p-6 flex flex-col gap-5">
+            <div class="flex flex-wrap items-start gap-5">
+              <div class="text-center min-w-[80px]">
+                <div id="streak-display" class="text-2xl font-bold text-primary">—</div>
+                <div class="text-[10px] uppercase tracking-widest text-outline mt-0.5">day streak</div>
+              </div>
+              <div class="flex-1 flex flex-col gap-1 justify-center">
+                <div id="week-comparison" class="text-sm text-on-surface-variant"></div>
+                <div id="best-day-badge" class="text-xs text-outline"></div>
+              </div>
+              <div id="all-time-stat" class="text-xs text-outline self-end"></div>
+            </div>
+            <div class="overflow-x-auto pb-1 no-scrollbar">
+              <div id="progress-grid" class="flex gap-1.5" style="min-width: max-content;"></div>
+            </div>
+            <div class="flex gap-4 text-xs text-outline">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-400 inline-block"></span>&gt;70%</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-yellow-400 inline-block"></span>40–70%</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-400 inline-block"></span>&lt;40%</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-surface-container-highest inline-block"></span>No data</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /tab-today -->
+
+      <!-- ================================================================ -->
+      <!-- WEEKLY REVIEW TAB -->
+      <!-- ================================================================ -->
+      <div id="tab-weekly" class="hidden flex flex-col gap-6">
+
+        <!-- Week selector -->
+        <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 px-6 py-4 flex items-center justify-between">
+          <button onclick="prevWeek()" class="text-outline hover:text-on-surface text-xl px-2 transition-colors">‹</button>
+          <span id="week-label" class="font-semibold text-on-surface text-sm tracking-tight"></span>
+          <button onclick="nextWeek()" class="text-outline hover:text-on-surface text-xl px-2 transition-colors">›</button>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-3">
+          <button id="weekly-generate-btn" onclick="generateWeeklyReview()"
+            class="signature-gradient text-white font-medium px-5 py-2.5 rounded-xl shadow-md shadow-primary/20 hover:scale-[1.02] transition-transform flex items-center gap-2 text-sm">
+            <span class="material-symbols-outlined text-[18px]">calendar_view_week</span>
+            Generate Weekly Review
+          </button>
+          <button id="weekly-redo-btn" class="hidden text-[10px] uppercase tracking-widest font-bold text-outline hover:text-on-surface transition-colors" onclick="generateWeeklyReview()">Regenerate</button>
+          <span id="weekly-status" class="text-sm text-slate-500 hidden">
+            <svg class="w-4 h-4 inline animate-spin mr-1" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"></path>
+            </svg>
+            Generating…
+          </span>
+          <span id="weekly-error" class="text-sm text-error hidden"></span>
+        </div>
+
+        <!-- Weekly review card -->
+        <div id="weekly-review-card" class="hidden flex flex-col gap-5">
+
+          <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-6">
+            <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-3">Week Summary</div>
+            <p id="wr-summary" class="text-on-surface text-sm leading-relaxed"></p>
+            <div class="mt-4">
+              <span id="wr-trend-badge" class="text-xs font-semibold px-3 py-1 rounded-full"></span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-6">
+              <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-emerald-600 mb-3">Wins</div>
+              <ul id="wr-wins" class="flex flex-col gap-2"></ul>
+            </div>
+            <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-6">
+              <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-amber-600 mb-3">Concerns</div>
+              <ul id="wr-concerns" class="flex flex-col gap-2"></ul>
+            </div>
+          </div>
+
+          <div id="wr-patterns-box" class="hidden bg-primary/5 border border-primary/10 rounded-xl p-6">
+            <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-2">Patterns</div>
+            <p id="wr-patterns" class="text-on-surface text-sm leading-relaxed"></p>
+          </div>
+
+          <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-6">
+            <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-4">Next Week's Focus</div>
+            <div id="wr-focus" class="flex flex-col gap-2.5"></div>
+          </div>
+
+          <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-6">
+            <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-4">Daily Completion</div>
+            <div id="week-heatmap" class="flex gap-2"></div>
+          </div>
+
+        </div>
+
+        <!-- Empty state -->
+        <div id="weekly-empty" class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-10 text-center text-outline text-sm italic">
+          No review for this week yet. Click "Generate Weekly Review" to create one.
+        </div>
+
+      </div><!-- /tab-weekly -->
+
+    </div>
+  </main>
+</div>
+
+<!-- Goal Modal -->
+<div id="modal-backdrop" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
+      <h3 id="modal-title" class="font-semibold text-on-surface">Add Goal</h3>
+      <button onclick="closeModal()" class="text-outline hover:text-on-surface text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-6 flex flex-col gap-4">
+      <input id="modal-goal-id" type="hidden" value="" />
+      <div>
+        <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Title *</label>
+        <input id="modal-title-input" type="text" placeholder="Goal title…"
+          class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+      </div>
+      <div>
+        <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Description</label>
+        <textarea id="modal-desc" rows="2" placeholder="Optional description…"
+          class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"></textarea>
+      </div>
+      <div class="flex gap-3">
+        <div class="flex-1">
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Level *</label>
+          <select id="modal-level" onchange="updateParentDropdown()"
+            class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+            <option value="yearly">Yearly</option>
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+          </select>
+        </div>
+        <div class="flex-1">
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Deadline</label>
+          <input id="modal-deadline" type="date"
+            class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+      </div>
+      <div id="modal-parent-wrap">
+        <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Parent Goal</label>
+        <select id="modal-parent"
+          class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+          <option value="">None</option>
+        </select>
+      </div>
+      <div id="modal-status-wrap" class="hidden">
+        <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Status</label>
+        <select id="modal-status"
+          class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="paused">Paused</option>
+          <option value="abandoned">Abandoned</option>
+        </select>
+      </div>
+    </div>
+    <div class="px-6 pb-6 flex gap-2">
+      <button id="modal-save-btn" onclick="saveGoal()"
+        class="flex-1 signature-gradient text-white font-medium py-2.5 rounded-xl text-sm shadow-md shadow-primary/20 hover:opacity-90 transition-opacity">Save</button>
+      <button id="modal-delete-btn" onclick="deleteGoalFromModal()"
+        class="hidden bg-error/5 hover:bg-error/10 text-error font-medium py-2.5 px-4 rounded-xl text-sm transition-colors">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== State =====
+let goalsFlat = [];
+let goalsTree = [];
+let tasksToday = [];
+let selectedMood = null;
+let currentWeekStart = getMondayOf(new Date());
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('nav-date').textContent = new Date().toLocaleDateString(undefined, {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  document.getElementById('modal-backdrop').addEventListener('click', closeModal);
+
+  // EOD prominence after 5pm
+  if (new Date().getHours() >= 17) {
+    document.getElementById('eod-prominence').classList.remove('hidden');
+  }
+
+  loadAll();
+});
+
+function loadAll() {
+  loadGoals();
+  loadTasks();
+  loadProgress();
+  loadDailyReview();
+}
+
+// ===== Tab switching =====
+function switchTab(tab) {
+  const today = document.getElementById('tab-today');
+  const weekly = document.getElementById('tab-weekly');
+  const btnToday = document.getElementById('tab-btn-today');
+  const btnWeekly = document.getElementById('tab-btn-weekly');
+  const btnTodayM = document.getElementById('tab-btn-today-m');
+  const btnWeeklyM = document.getElementById('tab-btn-weekly-m');
+
+  if (tab === 'today') {
+    today.classList.remove('hidden');
+    weekly.classList.add('hidden');
+    // Desktop
+    btnToday.classList.add('border-slate-900', 'text-slate-900', 'font-medium');
+    btnToday.classList.remove('border-transparent', 'text-slate-500');
+    btnWeekly.classList.add('border-transparent', 'text-slate-500');
+    btnWeekly.classList.remove('border-slate-900', 'text-slate-900', 'font-medium');
+    // Mobile
+    btnTodayM.classList.add('text-primary', 'border-primary');
+    btnTodayM.classList.remove('text-outline', 'border-transparent');
+    btnWeeklyM.classList.add('text-outline', 'border-transparent');
+    btnWeeklyM.classList.remove('text-primary', 'border-primary');
+  } else {
+    today.classList.add('hidden');
+    weekly.classList.remove('hidden');
+    // Desktop
+    btnWeekly.classList.add('border-slate-900', 'text-slate-900', 'font-medium');
+    btnWeekly.classList.remove('border-transparent', 'text-slate-500');
+    btnToday.classList.add('border-transparent', 'text-slate-500');
+    btnToday.classList.remove('border-slate-900', 'text-slate-900', 'font-medium');
+    // Mobile
+    btnWeeklyM.classList.add('text-primary', 'border-primary');
+    btnWeeklyM.classList.remove('text-outline', 'border-transparent');
+    btnTodayM.classList.add('text-outline', 'border-transparent');
+    btnTodayM.classList.remove('text-primary', 'border-primary');
+    loadWeeklyReview();
+  }
+}
+
+// ===== Mobile sidebar =====
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('open');
+}
+
+// ===== Goals =====
+async function loadGoals() {
+  const res = await fetch('/api/goals');
+  goalsTree = await res.json();
+  goalsFlat = flattenTree(goalsTree);
+  renderGoalTree();
+  populateGoalDropdowns();
+}
+
+function flattenTree(nodes, result = []) {
+  for (const n of nodes) {
+    result.push(n);
+    if (n.children && n.children.length) flattenTree(n.children, result);
+  }
+  return result;
+}
+
+function renderGoalTree() {
+  const el = document.getElementById('goal-tree');
+  if (!goalsTree.length) {
+    el.innerHTML = '<p class="text-slate-400 text-sm italic px-2">No goals yet. Add your first goal!</p>';
+    return;
+  }
+  el.innerHTML = goalsTree.map(g => renderGoalNode(g, 0)).join('');
+}
+
+function statusDot(status) {
+  const colors = { active: 'bg-emerald-400', completed: 'bg-primary', paused: 'bg-yellow-400', abandoned: 'bg-outline-variant' };
+  return `<span class="w-2 h-2 rounded-full flex-shrink-0 ${colors[status] || 'bg-outline-variant'}"></span>`;
+}
+
+function renderGoalNode(g, depth) {
+  const indent = depth * 12;
+  const hasChildren = g.children && g.children.length > 0;
+  const levelBadge = { yearly: 'Y', monthly: 'M', weekly: 'W' }[g.level] || '';
+  const levelColor = { yearly: 'text-primary', monthly: 'text-tertiary', weekly: 'text-primary-dim' }[g.level] || '';
+
+  const arrow = hasChildren
+    ? `<span class="tree-toggle open text-outline text-xs w-3">▶</span>`
+    : `<span class="w-3 inline-block"></span>`;
+
+  const deadlineStr = g.deadline ? `<span class="text-outline text-xs ml-1">${g.deadline}</span>` : '';
+
+  return `
+  <div class="goal-node" data-id="${g.id}">
+    <div class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-surface-container cursor-pointer group transition-colors"
+         style="padding-left: ${8 + indent}px"
+         onclick="handleGoalClick(event, ${g.id}, ${hasChildren})">
+      ${arrow}
+      ${statusDot(g.status)}
+      <span class="${levelColor} text-xs font-bold w-4 flex-shrink-0">${levelBadge}</span>
+      <span class="text-on-surface text-sm flex-1 truncate ${g.status === 'completed' ? 'line-through opacity-40' : ''}">${esc(g.title)}</span>
+      ${deadlineStr}
+      <button onclick="event.stopPropagation(); openGoalModal(${g.id})"
+        class="opacity-0 group-hover:opacity-100 text-outline hover:text-on-surface text-xs ml-1 transition-opacity">✎</button>
+    </div>
+    ${hasChildren ? `<div class="children-container">${g.children.map(c => renderGoalNode(c, depth + 1)).join('')}</div>` : ''}
+  </div>`;
+}
+
+function handleGoalClick(event, id, hasChildren) {
+  if (hasChildren) {
+    const node = event.currentTarget.closest('.goal-node');
+    const children = node.querySelector('.children-container');
+    const toggle = event.currentTarget.querySelector('.tree-toggle');
+    if (children) {
+      children.classList.toggle('hidden');
+      toggle && toggle.classList.toggle('open');
+    }
+  } else {
+    openGoalModal(id);
+  }
+}
+
+function populateGoalDropdowns() {
+  updateParentDropdown();
+  const sel = document.getElementById('new-task-goal');
+  sel.innerHTML = '<option value="">No goal</option>' +
+    goalsFlat.map(g => `<option value="${g.id}">${esc(g.title)}</option>`).join('');
+}
+
+function updateParentDropdown() {
+  const level = document.getElementById('modal-level').value;
+  const parentWrap = document.getElementById('modal-parent-wrap');
+  const parentSel = document.getElementById('modal-parent');
+
+  if (level === 'yearly') {
+    parentWrap.classList.add('hidden');
+    return;
+  }
+  parentWrap.classList.remove('hidden');
+  const parentLevel = level === 'monthly' ? 'yearly' : 'monthly';
+  const options = goalsFlat
+    .filter(g => g.level === parentLevel)
+    .map(g => `<option value="${g.id}">${esc(g.title)}</option>`)
+    .join('');
+  parentSel.innerHTML = '<option value="">None</option>' + options;
+}
+
+// ===== Goal Modal =====
+function openGoalModal(goalId = null) {
+  const backdrop = document.getElementById('modal-backdrop');
+  const titleEl = document.getElementById('modal-title');
+  const deleteBtn = document.getElementById('modal-delete-btn');
+  const statusWrap = document.getElementById('modal-status-wrap');
+  const idInput = document.getElementById('modal-goal-id');
+
+  document.getElementById('modal-title-input').value = '';
+  document.getElementById('modal-desc').value = '';
+  document.getElementById('modal-level').value = 'yearly';
+  document.getElementById('modal-deadline').value = '';
+  document.getElementById('modal-status').value = 'active';
+  updateParentDropdown();
+
+  if (goalId) {
+    const g = goalsFlat.find(x => x.id === goalId);
+    if (!g) return;
+    titleEl.textContent = 'Edit Goal';
+    deleteBtn.classList.remove('hidden');
+    statusWrap.classList.remove('hidden');
+    idInput.value = goalId;
+    document.getElementById('modal-title-input').value = g.title || '';
+    document.getElementById('modal-desc').value = g.description || '';
+    document.getElementById('modal-level').value = g.level || 'yearly';
+    document.getElementById('modal-deadline').value = g.deadline || '';
+    document.getElementById('modal-status').value = g.status || 'active';
+    updateParentDropdown();
+    if (g.parent_id) document.getElementById('modal-parent').value = g.parent_id;
+  } else {
+    titleEl.textContent = 'Add Goal';
+    deleteBtn.classList.add('hidden');
+    statusWrap.classList.add('hidden');
+    idInput.value = '';
+  }
+
+  backdrop.classList.remove('hidden');
+  document.getElementById('modal-title-input').focus();
+}
+
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.add('hidden');
+}
+
+async function saveGoal() {
+  const id = document.getElementById('modal-goal-id').value;
+  const title = document.getElementById('modal-title-input').value.trim();
+  const description = document.getElementById('modal-desc').value.trim();
+  const level = document.getElementById('modal-level').value;
+  const deadline = document.getElementById('modal-deadline').value || null;
+  const parentId = document.getElementById('modal-parent').value || null;
+  const status = document.getElementById('modal-status').value;
+
+  if (!title) { alert('Title is required.'); return; }
+
+  const body = { title, description, level, deadline, parent_id: parentId ? Number(parentId) : null };
+
+  if (id) {
+    body.status = status;
+    await fetch(`/api/goals/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+  } else {
+    await fetch('/api/goals', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+  }
+
+  closeModal();
+  await loadGoals();
+}
+
+async function deleteGoalFromModal() {
+  const id = document.getElementById('modal-goal-id').value;
+  if (!id) return;
+  if (!confirm('Delete this goal and all its sub-goals?')) return;
+  await fetch(`/api/goals/${id}`, { method: 'DELETE' });
+  closeModal();
+  await loadGoals();
+  await loadTasks();
+}
+
+// ===== Tasks =====
+async function loadTasks() {
+  const today = todayStr();
+  const res = await fetch(`/api/tasks?date=${today}`);
+  tasksToday = await res.json();
+  renderTasks();
+  updateInsightIfStored();
+  checkCarryForwardBanner();
+}
+
+function todayStr() {
+  return new Date().toLocaleDateString('en-CA');
+}
+
+function renderTasks() {
+  const carriedSection = document.getElementById('carried-section');
+  const carriedList = document.getElementById('carried-list');
+  const taskList = document.getElementById('task-list');
+
+  const carried = tasksToday.filter(t => t.is_carried && !t.completed);
+  const regular = tasksToday.filter(t => !t.is_carried);
+  const carriedDone = tasksToday.filter(t => t.is_carried && t.completed);
+
+  // Show carried section if there are any carried tasks
+  if (carried.length > 0) {
+    carriedSection.classList.remove('hidden');
+    carriedList.innerHTML = carried.map(t => taskHTML(t, true)).join('');
+  } else {
+    carriedSection.classList.add('hidden');
+  }
+
+  const allRegular = [...regular.filter(t => !t.completed), ...regular.filter(t => t.completed), ...carriedDone];
+
+  if (!allRegular.length && !carried.length) {
+    taskList.innerHTML = '<p class="text-outline text-sm italic p-6">No tasks yet. Generate a plan or add tasks manually.</p>';
+    return;
+  }
+
+  taskList.innerHTML = allRegular.map(t => taskHTML(t, false)).join('');
+}
+
+function taskHTML(t, isCarriedRow) {
+  const priorityBadge = {
+    high: 'bg-red-100 text-red-700',
+    medium: 'bg-amber-100 text-amber-700',
+    low: 'bg-emerald-100 text-emerald-700'
+  }[t.priority] || 'bg-surface-container text-on-surface-variant';
+
+  const timeStr = t.estimated_minutes ? `<span class="text-outline text-xs">${t.estimated_minutes}m</span>` : '';
+  const goalStr = t.goal_title ? `<span class="text-primary text-xs">${esc(t.goal_title)}</span>` : '';
+  const sourceStr = t.source === 'ai' ? '<span class="text-outline-variant text-xs">AI</span>' : '';
+
+  const carriedBadge = t.is_carried
+    ? `<span class="text-amber-600 text-xs bg-amber-50 px-1.5 py-0.5 rounded font-medium">↩ carried</span>`
+    : '';
+
+  const carryWarning = (t.carry_count || 0) >= 3
+    ? `<span class="text-orange-400 text-xs" title="This task has been carried forward ${t.carry_count} times">⚠ ×${t.carry_count}</span>`
+    : '';
+
+  return `
+  <div class="task-item flex items-start gap-3 px-6 py-4 hover:bg-surface-container-low/30 transition-colors ${t.completed ? 'opacity-60' : ''}" data-id="${t.id}">
+    <button onclick="toggleTask(${t.id})" class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-2 ${t.completed ? 'bg-primary border-primary' : 'border-outline-variant/40 hover:border-primary'} flex items-center justify-center transition-colors">
+      ${t.completed ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}
+    </button>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-medium text-sm ${t.completed ? 'line-through text-outline' : 'text-on-surface'}">${esc(t.title)}</span>
+        <span class="${priorityBadge} text-xs px-1.5 py-0.5 rounded-full font-medium">${t.priority || 'medium'}</span>
+        ${carriedBadge}${carryWarning}${sourceStr}
+      </div>
+      ${t.description ? `<p class="text-on-surface-variant text-xs mt-0.5 leading-relaxed">${esc(t.description)}</p>` : ''}
+      <div class="flex items-center gap-2 mt-1">${goalStr}${timeStr}</div>
+    </div>
+    <button onclick="deleteTask(${t.id})" class="text-outline-variant hover:text-error text-xs mt-0.5 transition-colors flex-shrink-0" title="Delete">✕</button>
+  </div>`;
+}
+
+async function toggleTask(id) {
+  const res = await fetch(`/api/tasks/${id}/toggle`, { method: 'PATCH' });
+  const updated = await res.json();
+  tasksToday = tasksToday.map(t => t.id === id ? updated : t);
+  renderTasks();
+  loadProgress();
+}
+
+async function deleteTask(id) {
+  await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+  tasksToday = tasksToday.filter(t => t.id !== id);
+  renderTasks();
+  loadProgress();
+}
+
+// ===== Carry Forward (Feature 1) =====
+async function checkCarryForwardBanner() {
+  if (tasksToday.length > 0) return; // only show if today has no tasks
+  try {
+    const res = await fetch('/api/tasks/carry-forward');
+    const data = await res.json();
+    if (data.count > 0) {
+      document.getElementById('carry-banner-text').textContent =
+        `You have ${data.count} incomplete task${data.count > 1 ? 's' : ''} from yesterday.`;
+      document.getElementById('carry-banner').classList.remove('hidden');
+    }
+  } catch (e) {}
+}
+
+async function carryForward() {
+  const btn = document.getElementById('carry-btn');
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  try {
+    const res = await fetch('/api/tasks/carry-forward', { method: 'POST' });
+    const newTasks = await res.json();
+    tasksToday = [...newTasks, ...tasksToday];
+    renderTasks();
+    document.getElementById('carry-banner').classList.add('hidden');
+  } catch (e) {
+    btn.textContent = 'Error — try again';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function dismissCarryBanner() {
+  document.getElementById('carry-banner').classList.add('hidden');
+}
+
+// ===== Inline add task form =====
+function showAddTaskForm() {
+  document.getElementById('add-task-form').classList.remove('hidden');
+  document.getElementById('new-task-title').focus();
+}
+function hideAddTaskForm() {
+  document.getElementById('add-task-form').classList.add('hidden');
+  document.getElementById('new-task-title').value = '';
+}
+async function submitAddTask() {
+  const title = document.getElementById('new-task-title').value.trim();
+  if (!title) return;
+  const priority = document.getElementById('new-task-priority').value;
+  const goalId = document.getElementById('new-task-goal').value || null;
+
+  const res = await fetch('/api/tasks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, priority, goal_id: goalId ? Number(goalId) : null })
+  });
+  const task = await res.json();
+  tasksToday.push(task);
+  renderTasks();
+  hideAddTaskForm();
+  loadProgress();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.activeElement.id === 'new-task-title') submitAddTask();
+});
+
+// ===== AI Generate =====
+async function generatePlan() {
+  const btn = document.getElementById('generate-btn');
+  const status = document.getElementById('generate-status');
+  const errEl = document.getElementById('error-msg');
+
+  btn.disabled = true;
+  btn.classList.add('opacity-50');
+  status.classList.remove('hidden');
+  errEl.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/generate-plan', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.classList.remove('hidden');
+    } else {
+      if (data.daily_insight) showInsight(data.daily_insight);
+      await loadTasks();
+      await loadProgress();
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('opacity-50');
+    status.classList.add('hidden');
+  }
+}
+
+function showInsight(text) {
+  document.getElementById('insight-text').textContent = text;
+  document.getElementById('insight-card').classList.remove('hidden');
+  sessionStorage.setItem('daily_insight', text);
+}
+
+function updateInsightIfStored() {
+  const stored = sessionStorage.getItem('daily_insight');
+  if (stored) showInsight(stored);
+}
+
+// ===== Daily Review (Feature 2) =====
+async function loadDailyReview() {
+  try {
+    const res = await fetch(`/api/review/daily?date=${todayStr()}`);
+    const data = await res.json();
+    if (data && data.review) {
+      showReviewResult(data.review, data.mood);
+    }
+  } catch (e) {}
+}
+
+function selectMood(mood) {
+  selectedMood = mood;
+  document.querySelectorAll('.mood-btn').forEach(btn => {
+    const isSelected = btn.dataset.mood === mood;
+    btn.classList.toggle('border-primary', isSelected);
+    btn.classList.toggle('bg-primary/5', isSelected);
+    btn.classList.toggle('border-outline-variant/20', !isSelected);
+    btn.classList.toggle('bg-surface-container-low/30', !isSelected);
+  });
+}
+
+async function submitDailyReview() {
+  const btn = document.getElementById('review-btn');
+  const status = document.getElementById('review-status');
+  const errEl = document.getElementById('review-error');
+  const notes = document.getElementById('review-notes').value.trim();
+
+  btn.disabled = true;
+  btn.classList.add('opacity-50');
+  status.classList.remove('hidden');
+  errEl.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/review/daily', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: notes || null, mood: selectedMood })
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.classList.remove('hidden');
+    } else {
+      showReviewResult(data, selectedMood);
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('opacity-50');
+    status.classList.add('hidden');
+  }
+}
+
+function showReviewResult(review, mood) {
+  document.getElementById('review-form').classList.add('hidden');
+  document.getElementById('review-result').classList.remove('hidden');
+  document.getElementById('redo-review-btn').classList.remove('hidden');
+
+  document.getElementById('review-reflection').textContent = review.reflection || '';
+  document.getElementById('review-encouragement').textContent = review.encouragement || '';
+
+  const patternsBox = document.getElementById('review-patterns-box');
+  if (review.patterns_noticed) {
+    document.getElementById('review-patterns').textContent = review.patterns_noticed;
+    patternsBox.classList.remove('hidden');
+  } else {
+    patternsBox.classList.add('hidden');
+  }
+
+  const sugBox = document.getElementById('review-suggestions-box');
+  const sugList = document.getElementById('review-suggestions');
+  if (review.tomorrow_suggestions && review.tomorrow_suggestions.length) {
+    sugList.innerHTML = review.tomorrow_suggestions.map(s =>
+      `<li class="flex items-start gap-2 text-sm text-on-surface">
+        <span class="text-primary mt-0.5 flex-shrink-0">→</span>${esc(s)}
+      </li>`
+    ).join('');
+    sugBox.classList.remove('hidden');
+  } else {
+    sugBox.classList.add('hidden');
+  }
+}
+
+function showReviewForm() {
+  document.getElementById('review-form').classList.remove('hidden');
+  document.getElementById('review-result').classList.add('hidden');
+  document.getElementById('redo-review-btn').classList.add('hidden');
+}
+
+// ===== Progress (Feature 5) =====
+async function loadProgress() {
+  const res = await fetch('/api/progress?days=30');
+  const data = await res.json();
+
+  // Streak
+  const streak = data.current_streak || 0;
+  const streakEl = document.getElementById('streak-display');
+  if (streak > 0) {
+    streakEl.textContent = `🔥 ${streak}`;
+    streakEl.classList.remove('text-outline');
+    streakEl.classList.add('text-primary');
+  } else {
+    streakEl.textContent = '—';
+    streakEl.classList.add('text-outline');
+    streakEl.classList.remove('text-primary');
+  }
+
+  // This week vs last week
+  const weekComp = document.getElementById('week-comparison');
+  if (data.this_week_rate !== null && data.this_week_rate !== undefined) {
+    const thisW = Math.round(data.this_week_rate * 100);
+    const lastW = data.last_week_rate !== null && data.last_week_rate !== undefined
+      ? Math.round(data.last_week_rate * 100)
+      : null;
+    const arrow = data.trend === 'improving' ? ' ↑' : data.trend === 'declining' ? ' ↓' : '';
+    const color = data.trend === 'improving' ? 'text-emerald-600' : data.trend === 'declining' ? 'text-error' : 'text-on-surface-variant';
+    const lastPart = lastW !== null ? ` <span class="text-outline">(last week: ${lastW}%)</span>` : '';
+    weekComp.innerHTML = `<span class="${color} font-semibold">This week: ${thisW}%${arrow}</span>${lastPart}`;
+  } else {
+    weekComp.textContent = 'No data this week yet.';
+  }
+
+  // Best day
+  const bestDay = document.getElementById('best-day-badge');
+  if (data.most_productive_day) {
+    bestDay.textContent = `Most productive on ${data.most_productive_day}s`;
+  }
+
+  // All-time
+  const allTime = document.getElementById('all-time-stat');
+  if (data.total_tasks_completed) {
+    const goalsPart = data.goals_completed ? ` across ${data.goals_completed} finished goal${data.goals_completed > 1 ? 's' : ''}` : '';
+    allTime.textContent = `${data.total_tasks_completed} tasks completed${goalsPart}`;
+  }
+
+  renderProgressGrid(data.daily || []);
+}
+
+function renderProgressGrid(daily) {
+  const grid = document.getElementById('progress-grid');
+  const today = new Date();
+  const cells = [];
+  const map = {};
+  for (const d of daily) map[d.date] = d.completion_pct;
+
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const ds = d.toLocaleDateString('en-CA');
+    const pct = map[ds];
+    const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+    let color = 'bg-surface-container-highest';
+    if (pct !== undefined) {
+      if (pct >= 70) color = 'bg-emerald-400';
+      else if (pct >= 40) color = 'bg-yellow-400';
+      else color = 'bg-red-400';
+    }
+    cells.push(`<div class="progress-cell ${color} rounded h-6 w-6 flex-shrink-0 cursor-default" title="${label}: ${pct !== undefined ? pct + '%' : 'no data'}"></div>`);
+  }
+  grid.innerHTML = cells.join('');
+}
+
+// ===== Weekly Review (Feature 3) =====
+function getMondayOf(d) {
+  const day = new Date(d);
+  const dow = day.getDay(); // 0=Sun
+  const diff = dow === 0 ? -6 : 1 - dow;
+  day.setDate(day.getDate() + diff);
+  day.setHours(0, 0, 0, 0);
+  return day;
+}
+
+function weekLabel(monday) {
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return `${fmt(monday)} – ${fmt(sunday)}`;
+}
+
+function weekStartStr(monday) {
+  return monday.toLocaleDateString('en-CA');
+}
+
+function prevWeek() {
+  currentWeekStart = new Date(currentWeekStart);
+  currentWeekStart.setDate(currentWeekStart.getDate() - 7);
+  loadWeeklyReview();
+}
+
+function nextWeek() {
+  const next = new Date(currentWeekStart);
+  next.setDate(next.getDate() + 7);
+  if (next > new Date()) return; // don't go into future
+  currentWeekStart = next;
+  loadWeeklyReview();
+}
+
+async function loadWeeklyReview() {
+  document.getElementById('week-label').textContent = weekLabel(currentWeekStart);
+  const ws = weekStartStr(currentWeekStart);
+
+  try {
+    const res = await fetch(`/api/review/weekly?week_start=${ws}`);
+    const data = await res.json();
+
+    if (data && data.review) {
+      showWeeklyReviewCard(data.review);
+      document.getElementById('weekly-generate-btn').classList.add('hidden');
+      document.getElementById('weekly-redo-btn').classList.remove('hidden');
+      renderWeekHeatmap(ws);
+    } else {
+      document.getElementById('weekly-review-card').classList.add('hidden');
+      document.getElementById('weekly-empty').classList.remove('hidden');
+      document.getElementById('weekly-generate-btn').classList.remove('hidden');
+      document.getElementById('weekly-redo-btn').classList.add('hidden');
+    }
+  } catch (e) {}
+}
+
+async function generateWeeklyReview() {
+  const btn = document.getElementById('weekly-generate-btn');
+  const redoBtn = document.getElementById('weekly-redo-btn');
+  const status = document.getElementById('weekly-status');
+  const errEl = document.getElementById('weekly-error');
+
+  btn.disabled = true;
+  redoBtn.disabled = true;
+  btn.classList.add('opacity-50');
+  status.classList.remove('hidden');
+  errEl.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/review/weekly', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ week_start: weekStartStr(currentWeekStart) })
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.classList.remove('hidden');
+    } else {
+      showWeeklyReviewCard(data);
+      document.getElementById('weekly-generate-btn').classList.add('hidden');
+      document.getElementById('weekly-redo-btn').classList.remove('hidden');
+      document.getElementById('weekly-empty').classList.add('hidden');
+      renderWeekHeatmap(weekStartStr(currentWeekStart));
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    redoBtn.disabled = false;
+    btn.classList.remove('opacity-50');
+    status.classList.add('hidden');
+  }
+}
+
+function showWeeklyReviewCard(review) {
+  document.getElementById('weekly-review-card').classList.remove('hidden');
+  document.getElementById('weekly-empty').classList.add('hidden');
+
+  document.getElementById('wr-summary').textContent = review.week_summary || '';
+
+  // Trend badge
+  const trendBadge = document.getElementById('wr-trend-badge');
+  const trendMap = {
+    improving: ['bg-emerald-100 text-emerald-700', 'Improving ↑'],
+    declining: ['bg-red-100 text-red-700', 'Declining ↓'],
+    stable: ['bg-surface-container text-on-surface-variant', 'Stable →'],
+  };
+  const [tClass, tText] = trendMap[review.overall_trend] || trendMap.stable;
+  trendBadge.className = `text-xs font-semibold px-3 py-1 rounded-full ${tClass}`;
+  trendBadge.textContent = tText;
+
+  // Wins
+  const winsList = document.getElementById('wr-wins');
+  winsList.innerHTML = (review.wins || []).map(w =>
+    `<li class="flex items-start gap-2 text-sm text-on-surface">
+      <span class="text-emerald-500 flex-shrink-0 mt-0.5">✓</span>${esc(w)}
+    </li>`
+  ).join('') || '<li class="text-outline text-sm italic">None recorded</li>';
+
+  // Concerns
+  const concernsList = document.getElementById('wr-concerns');
+  concernsList.innerHTML = (review.concerns || []).map(c =>
+    `<li class="flex items-start gap-2 text-sm text-on-surface">
+      <span class="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>${esc(c)}
+    </li>`
+  ).join('') || '<li class="text-outline text-sm italic">None recorded</li>';
+
+  // Patterns
+  const patternsBox = document.getElementById('wr-patterns-box');
+  if (review.patterns) {
+    document.getElementById('wr-patterns').textContent = review.patterns;
+    patternsBox.classList.remove('hidden');
+  } else {
+    patternsBox.classList.add('hidden');
+  }
+
+  // Next week focus
+  const focusEl = document.getElementById('wr-focus');
+  focusEl.innerHTML = (review.next_week_focus || []).map(f =>
+    `<div class="bg-surface-container-low/50 rounded-xl px-4 py-3">
+      <div class="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">${esc(f.goal_title || 'General')}</div>
+      <div class="text-sm text-on-surface">${esc(f.suggestion || '')}</div>
+    </div>`
+  ).join('') || '<p class="text-outline text-sm italic">No specific focus areas suggested.</p>';
+}
+
+async function renderWeekHeatmap(weekStartIso) {
+  // Fetch tasks for the week to compute daily completion
+  const monday = new Date(weekStartIso + 'T00:00:00');
+  const heatmap = document.getElementById('week-heatmap');
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const cells = [];
+
+  // Use the progress data to get completion pcts
+  const res = await fetch('/api/progress?days=60');
+  const data = await res.json();
+  const map = {};
+  for (const d of (data.daily || [])) map[d.date] = d.completion_pct;
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const ds = d.toLocaleDateString('en-CA');
+    const pct = map[ds];
+    let color = 'bg-surface-container-highest';
+    if (pct !== undefined) {
+      if (pct >= 70) color = 'bg-emerald-400';
+      else if (pct >= 40) color = 'bg-yellow-400';
+      else color = 'bg-red-400';
+    }
+    cells.push(`
+      <div class="flex flex-col items-center gap-1 flex-1">
+        <div class="${color} rounded w-full h-8" title="${ds}: ${pct !== undefined ? pct + '%' : 'no data'}"></div>
+        <span class="text-xs text-outline">${dayNames[i]}</span>
+        ${pct !== undefined ? `<span class="text-xs font-medium text-on-surface">${pct}%</span>` : '<span class="text-xs text-outline-variant">—</span>'}
+      </div>`);
+  }
+  heatmap.innerHTML = cells.join('');
+}
+
+// ===== Utilities =====
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

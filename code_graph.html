@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Jenax — Code Review Graph</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #7c3aed;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 2rem;
+    }
+    h2 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #94a3b8;
+      margin: 2rem 0 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 0.4rem;
+    }
+    .graph-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+    }
+    .graph-card p.desc {
+      font-size: 0.82rem;
+      color: #64748b;
+      margin-bottom: 1.2rem;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+    .mermaid svg {
+      max-width: 100%;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
+      font-size: 0.78rem;
+      color: #94a3b8;
+    }
+    .legend span { display: flex; align-items: center; gap: 0.35rem; }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      display: inline-block; flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Jenax — Code Review Graph</h1>
+<p class="subtitle">Architecture, data flow, and database schema for the Jenax daily planner.</p>
+
+<!-- ─── 1. Module Dependency Graph ──────────────────────────────────────── -->
+<h2>1 · Module Dependencies</h2>
+<div class="graph-card">
+  <p class="desc">Which Python modules import which. Arrows point from importer → imported.</p>
+  <div class="mermaid">
+graph LR
+    A([app.py<br/>Flask entry point]) -->|import| B([database.py<br/>SQLite layer])
+    A -->|import| C([planner.py<br/>Gemini AI])
+    A -->|lazy import| D([config.py<br/>env vars])
+    C -->|import| B
+    C -->|import| D
+    B -->|import| D
+    D([config.py<br/>env vars])
+
+    style A fill:#7c3aed,color:#fff,stroke:#6d28d9
+    style B fill:#0369a1,color:#fff,stroke:#0284c7
+    style C fill:#065f46,color:#fff,stroke:#047857
+    style D fill:#78350f,color:#fff,stroke:#92400e
+  </div>
+</div>
+
+<!-- ─── 2. API Routes → Functions → DB ──────────────────────────────────── -->
+<h2>2 · API Routes → Function Calls → Database</h2>
+<div class="graph-card">
+  <p class="desc">
+    Every HTTP route in <code>app.py</code>, the functions it calls, and which DB operations are performed.
+    Purple = route handler · Blue = database.py function · Green = planner.py function.
+  </p>
+  <div class="mermaid">
+flowchart TD
+    subgraph GOALS["📋 Goals API"]
+        R1["GET /api/goals"] --> F1["db.get_all_goals()"]
+        R2["POST /api/goals"] --> F2["db.create_goal()"]
+        R3["PUT /api/goals/:id"] --> F3["db.update_goal()"]
+        R4["DELETE /api/goals/:id"] --> F4["db.delete_goal()"]
+        R5["PATCH /api/goals/:id/status"] --> F3
+    end
+
+    subgraph TASKS["✅ Tasks API"]
+        R6["GET /api/tasks"] --> F5["db.get_tasks_for_date()"]
+        R7["POST /api/tasks"] --> F6["db.create_task()"]
+        R8["PATCH /api/tasks/:id/toggle"] --> F7["db.toggle_task()"]
+        R8 --> F8["db.upsert_reflection()"]
+        R9["DELETE /api/tasks/:id"] --> F9["db.delete_task()"]
+    end
+
+    subgraph CARRY["🔄 Carry-Forward API"]
+        R10["GET /api/tasks/carry-forward"] --> F10["db.get_yesterday_incomplete_count()"]
+        R11["POST /api/tasks/carry-forward"] --> F11["db.carry_forward_tasks()"]
+    end
+
+    subgraph PLANNER["🤖 AI Planner API"]
+        R12["POST /api/generate-plan"] --> P1["planner.generate_daily_plan()"]
+        P1 --> F13["db.get_active_goals_flat()"]
+        P1 --> F14["db.get_recent_task_history()"]
+        P1 --> F5
+        P1 --> F8
+        P1 --> F15["db.get_reflection_for_date()"]
+        P1 --> F16["db.get_previous_weekly_review()"]
+        P1 --> F17["db.get_day_of_week_patterns()"]
+        P1 --> F6
+    end
+
+    subgraph REVIEW["📊 Review API"]
+        R13["GET /api/review/daily"] --> F15
+        R14["POST /api/review/daily"] --> P2["planner.generate_daily_review()"]
+        P2 --> F5
+        P2 --> F8
+        P2 --> F14
+
+        R15["GET /api/review/weekly"] --> F18["db.get_weekly_review()"]
+        R16["POST /api/review/weekly"] --> P3["planner.generate_weekly_review()"]
+        P3 --> F19["db.get_week_data()"]
+        P3 --> F13
+        P3 --> F16
+        P3 --> F20["db.save_weekly_review()"]
+
+        R17["GET /api/reviews/weekly/list"] --> F21["db.list_weekly_reviews()"]
+    end
+
+    subgraph PROGRESS["📈 Progress API"]
+        R18["GET /api/progress"] --> F22["db.get_progress_data()"]
+    end
+
+    style R1 fill:#4c1d95,color:#fff,stroke:none
+    style R2 fill:#4c1d95,color:#fff,stroke:none
+    style R3 fill:#4c1d95,color:#fff,stroke:none
+    style R4 fill:#4c1d95,color:#fff,stroke:none
+    style R5 fill:#4c1d95,color:#fff,stroke:none
+    style R6 fill:#4c1d95,color:#fff,stroke:none
+    style R7 fill:#4c1d95,color:#fff,stroke:none
+    style R8 fill:#4c1d95,color:#fff,stroke:none
+    style R9 fill:#4c1d95,color:#fff,stroke:none
+    style R10 fill:#4c1d95,color:#fff,stroke:none
+    style R11 fill:#4c1d95,color:#fff,stroke:none
+    style R12 fill:#4c1d95,color:#fff,stroke:none
+    style R13 fill:#4c1d95,color:#fff,stroke:none
+    style R14 fill:#4c1d95,color:#fff,stroke:none
+    style R15 fill:#4c1d95,color:#fff,stroke:none
+    style R16 fill:#4c1d95,color:#fff,stroke:none
+    style R17 fill:#4c1d95,color:#fff,stroke:none
+    style R18 fill:#4c1d95,color:#fff,stroke:none
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:#4c1d95"></span> Route handler (app.py)</span>
+    <span><span class="dot" style="background:#0369a1"></span> database.py function</span>
+    <span><span class="dot" style="background:#065f46"></span> planner.py function</span>
+  </div>
+</div>
+
+<!-- ─── 3. Database Schema / ER Diagram ─────────────────────────────────── -->
+<h2>3 · Database Schema</h2>
+<div class="graph-card">
+  <p class="desc">
+    Tables, columns, types, constraints, and foreign-key relationships. All SQL is hand-written in
+    <code>database.py</code> using stdlib <code>sqlite3</code>.
+  </p>
+  <div class="mermaid">
+erDiagram
+    goals {
+        INTEGER id PK
+        TEXT title "NOT NULL"
+        TEXT description
+        TEXT level "yearly | monthly | weekly"
+        INTEGER parent_id FK "→ goals(id) CASCADE"
+        TEXT status "active | completed | paused | abandoned"
+        DATE deadline
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    daily_tasks {
+        INTEGER id PK
+        DATE date "DEFAULT today"
+        TEXT title "NOT NULL"
+        TEXT description
+        TEXT priority "high | medium | low"
+        INTEGER goal_id FK "→ goals(id) SET NULL"
+        BOOLEAN completed "DEFAULT 0"
+        DATETIME completed_at
+        TEXT source "ai | manual"
+        INTEGER estimated_minutes
+        DATE carried_from "NULL = not carried"
+        DATETIME created_at
+    }
+
+    daily_reflections {
+        INTEGER id PK
+        DATE date "UNIQUE"
+        INTEGER tasks_completed
+        INTEGER tasks_total
+        TEXT ai_summary "JSON or plain text"
+        TEXT notes "user free-text"
+        TEXT mood "great|good|okay|rough|bad"
+        DATETIME created_at
+    }
+
+    weekly_reviews {
+        INTEGER id PK
+        DATE week_start "UNIQUE"
+        DATE week_end
+        INTEGER total_tasks
+        INTEGER completed_tasks
+        REAL completion_rate
+        TEXT goals_progressed "JSON int[]"
+        TEXT goals_neglected  "JSON int[]"
+        TEXT ai_review "JSON blob"
+        TEXT focus_areas "JSON object[]"
+        DATETIME created_at
+    }
+
+    goals ||--o{ goals : "parent_id (self-ref tree)"
+    goals ||--o{ daily_tasks : "goal_id"
+  </div>
+</div>
+
+<!-- ─── 4. AI Data Flow ──────────────────────────────────────────────────── -->
+<h2>4 · AI / Gemini Data Flow</h2>
+<div class="graph-card">
+  <p class="desc">
+    How context is assembled, sent to Gemini, parsed, and persisted for each of the three AI operations.
+  </p>
+  <div class="mermaid">
+sequenceDiagram
+    participant FE as Frontend
+    participant APP as app.py
+    participant PL as planner.py
+    participant DB as database.py
+    participant GEM as Gemini API
+    participant LOG as logs/YYYY-MM-DD.txt
+
+    rect rgb(30,41,59)
+        Note over FE,LOG: POST /api/generate-plan
+        FE->>APP: POST /api/generate-plan
+        APP->>PL: generate_daily_plan()
+        PL->>DB: get_active_goals_flat()
+        PL->>DB: get_recent_task_history(7)
+        PL->>DB: get_tasks_for_date(today)
+        PL->>DB: get_reflection_for_date(yesterday)
+        PL->>DB: get_previous_weekly_review()
+        PL->>DB: get_day_of_week_patterns()
+        PL->>GEM: _call_gemini_with_retry(prompt)
+        GEM-->>PL: JSON {tasks[], daily_insight}
+        PL->>LOG: _log_response(prompt, text)
+        PL->>DB: create_task() × N
+        PL->>DB: upsert_reflection()
+        PL-->>APP: {tasks, daily_insight}
+        APP-->>FE: 200 JSON
+    end
+
+    rect rgb(20,52,40)
+        Note over FE,LOG: POST /api/review/daily
+        FE->>APP: POST /api/review/daily {notes, mood}
+        APP->>PL: generate_daily_review()
+        PL->>DB: get_tasks_for_date(target)
+        PL->>DB: get_reflection_for_date(yesterday)
+        PL->>DB: get_recent_task_history(7)
+        PL->>GEM: _call_gemini_with_retry(prompt)
+        GEM-->>PL: JSON {reflection, patterns, tomorrow_suggestions, encouragement}
+        PL->>LOG: _log_response(prompt, text)
+        PL->>DB: upsert_reflection(ai_summary=JSON, notes, mood)
+        PL-->>APP: review JSON
+        APP-->>FE: 200 JSON
+    end
+
+    rect rgb(50,25,10)
+        Note over FE,LOG: POST /api/review/weekly
+        FE->>APP: POST /api/review/weekly {week_start?}
+        APP->>PL: generate_weekly_review()
+        PL->>DB: get_week_data(start, end)
+        PL->>DB: get_active_goals_flat()
+        PL->>DB: get_previous_weekly_review()
+        PL->>GEM: _call_gemini_with_retry(prompt)
+        GEM-->>PL: JSON {week_summary, wins, concerns, patterns, next_week_focus, overall_trend}
+        PL->>LOG: _log_response(prompt, text)
+        PL->>DB: save_weekly_review(...)
+        PL-->>APP: review JSON
+        APP-->>FE: 200 JSON
+    end
+  </div>
+</div>
+
+<!-- ─── 5. Call Graph: database.py ──────────────────────────────────────── -->
+<h2>5 · database.py — Function Map</h2>
+<div class="graph-card">
+  <p class="desc">
+    Every public function in <code>database.py</code>, grouped by domain. All functions call
+    <code>get_connection()</code> internally (omitted for clarity).
+  </p>
+  <div class="mermaid">
+mindmap
+  root((database.py))
+    Lifecycle
+      init_db
+        create tables
+        run migrations
+    Goals
+      create_goal
+      get_goal
+      get_all_goals
+        builds nested tree
+      get_active_goals_flat
+        used by planner
+      update_goal
+      delete_goal
+    Tasks
+      create_task
+      get_task
+        LEFT JOIN goals
+        subquery carry_count
+      get_tasks_for_date
+        LEFT JOIN goals
+        subquery carry_count
+      toggle_task
+      delete_task
+    Carry-Forward
+      get_yesterday_incomplete_count
+      carry_forward_tasks
+    History & Patterns
+      get_recent_task_history
+      get_day_of_week_patterns
+    Reflections
+      upsert_reflection
+        ON CONFLICT update
+      get_reflection_for_date
+    Weekly Reviews
+      save_weekly_review
+        ON CONFLICT update
+      get_weekly_review
+      list_weekly_reviews
+      get_week_data
+      get_previous_weekly_review
+    Progress
+      get_progress_data
+        daily stats
+        streak calc
+        week-over-week rate
+        longest streak
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#7c3aed',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#6d28d9',
+      lineColor: '#64748b',
+      secondaryColor: '#1e293b',
+      tertiaryColor: '#0f1117',
+      background: '#0f1117',
+      mainBkg: '#1e293b',
+      nodeBorder: '#334155',
+      clusterBkg: '#1a2744',
+      titleColor: '#94a3b8',
+      edgeLabelBackground: '#1e293b',
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    },
+    flowchart: { curve: 'basis', padding: 20 },
+    er: { layoutDirection: 'TB', minEntityWidth: 100 },
+    sequence: { actorMargin: 60, width: 160, mirrorActors: false },
+  });
+</script>
+</body>
+</html>

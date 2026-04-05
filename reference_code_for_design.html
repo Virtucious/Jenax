@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary": "#eff9ff",
+                    "tertiary-fixed-dim": "#b9c7e2",
+                    "surface-container": "#e8eff3",
+                    "inverse-surface": "#0b0f10",
+                    "secondary-dim": "#4f5457",
+                    "on-surface": "#2a3439",
+                    "on-error-container": "#752121",
+                    "outline": "#717c82",
+                    "on-background": "#2a3439",
+                    "surface-tint": "#44636f",
+                    "on-tertiary-container": "#3c4a60",
+                    "primary-fixed-dim": "#b9d9e8",
+                    "on-tertiary": "#f8f8ff",
+                    "tertiary-container": "#c7d5f1",
+                    "tertiary-fixed": "#c7d5f1",
+                    "on-secondary-fixed-variant": "#575c60",
+                    "primary-fixed": "#c7e8f6",
+                    "on-primary-container": "#375662",
+                    "surface": "#f7f9fb",
+                    "inverse-on-surface": "#9a9d9f",
+                    "surface-container-highest": "#d9e4ea",
+                    "on-tertiary-fixed-variant": "#45536a",
+                    "error-container": "#fe8983",
+                    "on-secondary": "#f5f9fd",
+                    "secondary": "#5b6063",
+                    "tertiary-dim": "#46546b",
+                    "primary-dim": "#385763",
+                    "on-error": "#fff7f6",
+                    "error-dim": "#4e0309",
+                    "tertiary": "#526077",
+                    "on-primary-fixed-variant": "#41606c",
+                    "on-surface-variant": "#566166",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-container": "#c7e8f6",
+                    "primary": "#44636f",
+                    "surface-variant": "#d9e4ea",
+                    "on-primary-fixed": "#24434f",
+                    "background": "#f7f9fb",
+                    "secondary-container": "#dfe3e7",
+                    "on-tertiary-fixed": "#29374c",
+                    "on-secondary-container": "#4d5256",
+                    "surface-container-high": "#e1e9ee",
+                    "surface-container-low": "#f0f4f7",
+                    "surface-dim": "#cfdce3",
+                    "surface-bright": "#f7f9fb",
+                    "on-secondary-fixed": "#3b4043",
+                    "secondary-fixed": "#dfe3e7",
+                    "secondary-fixed-dim": "#d1d5d9",
+                    "outline-variant": "#a9b4b9",
+                    "inverse-primary": "#cff0ff",
+                    "error": "#9f403d"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Inter"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        .signature-gradient {
+            background: linear-gradient(135deg, #44636f 0%, #385763 100%);
+        }
+        .glass-overlay {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased min-h-screen">
+<nav class="fixed top-0 w-full z-50 glass-overlay shadow-sm shadow-slate-200/50 flex items-center justify-between px-8 h-16 w-full">
+<div class="text-lg font-semibold tracking-tighter text-slate-800">Curator Dash</div>
+<div class="hidden md:flex gap-x-8 items-center h-full">
+<a class="text-slate-900 font-medium border-b-2 border-slate-900 h-full flex items-center px-1 duration-300 ease-in-out" href="#">Overview</a>
+<a class="text-slate-500 hover:text-slate-800 transition-colors duration-300 ease-in-out" href="#">Analytics</a>
+<a class="text-slate-500 hover:text-slate-800 transition-colors duration-300 ease-in-out" href="#">Collections</a>
+</div>
+<div class="flex items-center gap-x-6">
+<div class="relative flex items-center">
+<span class="material-symbols-outlined text-slate-600 absolute left-3">search</span>
+<input class="bg-surface-container-low border-none rounded-full py-1.5 pl-10 pr-4 text-sm focus:ring-0 w-48 transition-all duration-300 focus:w-64" placeholder="Search entries..." type="text"/>
+</div>
+<div class="flex gap-x-4 text-slate-600">
+<span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors">notifications</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors">settings</span>
+</div>
+<img alt="User profile" class="w-8 h-8 rounded-full object-cover border border-outline-variant/20" data-alt="professional portrait of a young woman with a calm expression against a minimalist neutral studio background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAx0_wBAuZUNrPXiYchy7fv--e-_k2vq8nCbmo1kuOfZRA8v0j67L7xOSEq-TBXWNLUVpFajdv0nnzQP6hd4kEpZr4EoUWauDdAUDJkBj5Zy8zr0sfR1tT-exNWNIQxcL1F3iTx41cKWY40QovFznTG-zlrt1Q2YqbO8g9FmepBGiuR9spQOktmqtTWsWSMyU_JmVy1dND0JuVqGYXEwJ6XDfkAgvipgN-OqBYIzDmd8pYZS3RBoOCd_8WUKiftlPWm_mXzL-dSLwTx"/>
+</div>
+</nav>
+<aside class="fixed left-0 top-0 h-full w-64 pt-20 border-r border-slate-200/50 bg-slate-50 flex flex-col gap-y-2 px-4">
+<div class="px-4 py-6 mb-4 flex items-center gap-x-3">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white">
+<span class="material-symbols-outlined">auto_awesome_motion</span>
+</div>
+<div>
+<div class="text-sm font-semibold text-on-surface">Workspace</div>
+<div class="text-[10px] uppercase tracking-widest font-medium text-slate-400">Premium Tier</div>
+</div>
+</div>
+<div class="space-y-1">
+<a class="flex items-center gap-x-3 px-4 py-2.5 text-slate-900 bg-white rounded-lg shadow-sm transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+<span class="text-xs uppercase tracking-widest font-medium">Overview</span>
+</a>
+<a class="flex items-center gap-x-3 px-4 py-2.5 text-slate-400 hover:bg-slate-200/50 transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined text-xl">insights</span>
+<span class="text-xs uppercase tracking-widest font-medium">Analytics</span>
+</a>
+<a class="flex items-center gap-x-3 px-4 py-2.5 text-slate-400 hover:bg-slate-200/50 transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined text-xl">auto_awesome_motion</span>
+<span class="text-xs uppercase tracking-widest font-medium">Collections</span>
+</a>
+<a class="flex items-center gap-x-3 px-4 py-2.5 text-slate-400 hover:bg-slate-200/50 transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined text-xl">inventory_2</span>
+<span class="text-xs uppercase tracking-widest font-medium">Inventory</span>
+</a>
+<a class="flex items-center gap-x-3 px-4 py-2.5 text-slate-400 hover:bg-slate-200/50 transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined text-xl">tune</span>
+<span class="text-xs uppercase tracking-widest font-medium">Settings</span>
+</a>
+</div>
+<div class="mt-auto pb-10">
+<button class="w-full signature-gradient text-white rounded-xl py-3 px-4 flex items-center justify-center gap-x-2 text-sm font-medium shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
+<span class="material-symbols-outlined text-lg">add</span>
+<span>New Entry</span>
+</button>
+</div>
+</aside>
+<main class="ml-64 pt-24 px-12 pb-12">
+<header class="mb-12 max-w-4xl">
+<h1 class="text-4xl font-bold tracking-tight text-on-surface mb-2">Good morning, Curator</h1>
+<p class="text-slate-500 body-lg">Your workspace is calm. You have 4 tasks scheduled for today.</p>
+</header>
+<div class="grid grid-cols-12 gap-8">
+<section class="col-span-8 space-y-8">
+<div class="grid grid-cols-2 gap-8">
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10">
+<div class="flex justify-between items-center mb-6">
+<span class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary">Daily Goals</span>
+<span class="material-symbols-outlined text-slate-300">target</span>
+</div>
+<div class="space-y-6">
+<div>
+<div class="flex justify-between text-xs mb-2">
+<span class="font-medium">Deep Work Session</span>
+<span class="text-slate-400">80%</span>
+</div>
+<div class="w-full h-1 bg-surface-container-low rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[80%] rounded-full"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs mb-2">
+<span class="font-medium">Archival Review</span>
+<span class="text-slate-400">45%</span>
+</div>
+<div class="w-full h-1 bg-surface-container-low rounded-full overflow-hidden">
+<div class="h-full bg-primary/40 w-[45%] rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10">
+<div class="flex justify-between items-center mb-6">
+<span class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary">Streak Progress</span>
+<span class="material-symbols-outlined text-slate-300">show_chart</span>
+</div>
+<div class="flex items-end justify-between gap-1 h-24">
+<div class="w-full bg-surface-container-low h-[40%] rounded-sm"></div>
+<div class="w-full bg-surface-container-low h-[60%] rounded-sm"></div>
+<div class="w-full bg-primary h-[90%] rounded-sm"></div>
+<div class="w-full bg-surface-container-low h-[50%] rounded-sm"></div>
+<div class="w-full bg-primary h-[75%] rounded-sm"></div>
+<div class="w-full bg-primary h-[85%] rounded-sm"></div>
+<div class="w-full signature-gradient h-full rounded-sm"></div>
+</div>
+<div class="mt-4 flex justify-between text-[9px] uppercase tracking-widest text-slate-400">
+<span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+<div class="px-8 py-6 border-b border-outline-variant/5 flex justify-between items-center">
+<h2 class="text-sm font-semibold tracking-tight">Today's Tasks</h2>
+<button class="text-[10px] uppercase tracking-widest font-bold text-primary hover:text-primary-dim transition-colors">View All</button>
+</div>
+<div class="divide-y divide-outline-variant/5">
+<div class="px-8 py-5 flex items-center gap-x-6 hover:bg-surface-container-low/30 transition-colors group">
+<div class="w-5 h-5 rounded-full border border-outline-variant/40 flex items-center justify-center group-hover:border-primary transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-[12px] text-white group-hover:text-primary">check</span>
+</div>
+<div class="flex-1">
+<div class="text-sm font-medium text-on-surface">Curate Summer Collection '24</div>
+<div class="text-[11px] text-slate-400">Identity Design &amp; Assets</div>
+</div>
+<div class="text-[11px] font-medium text-slate-400 px-3 py-1 bg-surface-container-low rounded-full">High</div>
+</div>
+<div class="px-8 py-5 flex items-center gap-x-6 hover:bg-surface-container-low/30 transition-colors group">
+<div class="w-5 h-5 rounded-full border border-outline-variant/40 flex items-center justify-center group-hover:border-primary transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-[12px] text-white group-hover:text-primary">check</span>
+</div>
+<div class="flex-1">
+<div class="text-sm font-medium text-on-surface">Review Photographer Portfolio</div>
+<div class="text-[11px] text-slate-400">External Submissions</div>
+</div>
+<div class="text-[11px] font-medium text-slate-400 px-3 py-1 bg-surface-container-low rounded-full">Med</div>
+</div>
+<div class="px-8 py-5 flex items-center gap-x-6 hover:bg-surface-container-low/30 transition-colors group opacity-50">
+<div class="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[12px] text-white" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="flex-1">
+<div class="text-sm font-medium text-on-surface line-through">Morning Briefing</div>
+<div class="text-[11px] text-slate-400">Team Alignment</div>
+</div>
+<div class="text-[11px] font-medium text-slate-400 px-3 py-1 bg-surface-container-low rounded-full">Done</div>
+</div>
+</div>
+</div>
+</section>
+<section class="col-span-4 space-y-8">
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10">
+<div class="flex justify-between items-center mb-6">
+<span class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary">Archive Entry</span>
+<span class="material-symbols-outlined text-slate-300">inventory_2</span>
+</div>
+<div class="space-y-4">
+<div class="aspect-[4/3] rounded-lg overflow-hidden relative group cursor-pointer">
+<img alt="Minimalist interior" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="ultra-minimalist bright interior with a single designer chair and soft sunlight shadows on white walls" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtkiVIAqWbG8k0JcjFocCSrZyJ8JcAd0HAlChn4gcmoxxWr8R4dHLgaBkCfw7aF7k5BObfBaMwojdly6LYGbOXHQ8kJ5HkX5__LlbNBvHbPQLhnEbTMdB3nInxuyesG8wTf2RnbIW5dZgS-xUdBC0BmDlWjR6OGHNs_6v1DfnEHAEfHUyvm81WVG7mCK7BOjoZ0VFcp1O9UkdOWh0y9xHZYTPPB2cCgOo8bJACGj8ynxQK9JqDkKH0ySmz-fnClEfpbU1YCYoPla3Z"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4">
+<span class="text-[9px] uppercase tracking-widest text-white/80">Last Week</span>
+<div class="text-sm font-medium text-white">Scandinavian Minimalism</div>
+</div>
+</div>
+<div class="pt-2">
+<h3 class="text-xs font-semibold mb-2">Recently Archived</h3>
+<div class="space-y-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-slate-100 flex-shrink-0 overflow-hidden">
+<img alt="Texture" class="w-full h-full object-cover" data-alt="close-up of abstract white flowing fabric texture with soft natural lighting and elegant shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD23TEOFp83jqMFDUGMYFWiCyDPTEtB7pi0lFZBpuz1YC7gdY5wv-Icnzhta6AFry95UVcHA0o8jodpKdU3CFxNWeUwbhVSuk7kX41E5o7hpXRfd_XzbTkeJTStUHKZ3HAltqWsi2MQMdTImm_XrHmhCrOqVcPP31s-d-j8LsmVxzohitQraDAXhx4M82f96mPVP-c2E7bKjBzL-zNSCLsNMACwTDuQSAImI-8Vo6aRejjfn7m_5Fp5eptsUfLu-A2NViqqyOfD5DEf"/>
+</div>
+<div class="min-w-0">
+<div class="text-[11px] font-medium truncate">Textile Studies 01</div>
+<div class="text-[9px] text-slate-400">April 12, 2024</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-slate-100 flex-shrink-0 overflow-hidden">
+<img alt="Landscape" class="w-full h-full object-cover" data-alt="serene misty mountain landscape at dawn with soft blue and gray tones and subtle silhouettes of pine trees" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCuhwxy8GuQnCGDltQ7DWFvcZTjLNQyx_EHMyjdejmecRnDwHQz695yrJwTwjoRLWgdDumD0OSyG2SQvYOHJoZoDi78ozJQ56Bo0DjG9IwL9DGd-Hfrs5_8MkiLPhN6kXJ4tyulp6puOSPi2OgBQNfA_14kKsIgJNN2m93oZ2vTSgwCywQIiw1TNi6M4D0dpi5Adm37jWzECUhJ25IeTQCUt7xdfxzKmPnnFvMhofh0i0j2xfshck_4gMaTldjsdU0R8zIsvesfT-vk"/>
+</div>
+<div class="min-w-0">
+<div class="text-[11px] font-medium truncate">Foggy Peaks Series</div>
+<div class="text-[9px] text-slate-400">April 10, 2024</div>
+</div>
+</div>
+</div>
+</div>
+<button class="w-full border border-outline-variant/20 hover:bg-surface-container-low text-[10px] uppercase tracking-widest font-bold py-3 rounded-xl transition-colors mt-4">
+                            Access Full Archive
+                        </button>
+</div>
+</div>
+<div class="bg-primary/5 p-8 rounded-xl border border-primary/10">
+<div class="text-primary text-xs font-bold uppercase tracking-widest mb-4">Curator's Tip</div>
+<p class="text-sm text-primary-dim leading-relaxed italic">
+                        "Elegance is not abundance, but the elimination of the unnecessary."
+                    </p>
+<div class="mt-4 flex items-center gap-2">
+<div class="w-6 h-[1px] bg-primary/30"></div>
+<span class="text-[10px] text-primary/60 uppercase font-medium">Daily Reflection</span>
+</div>
+</div>
+</section>
+</div>
+</main>
+<div class="fixed bottom-8 right-8 z-50">
+<button class="signature-gradient text-white w-14 h-14 rounded-full flex items-center justify-center shadow-2xl shadow-primary/40 hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-2xl">add</span>
+</button>
+</div>
+</body></html>

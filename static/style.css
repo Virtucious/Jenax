@@ -1,0 +1,53 @@
+/* Jenax — custom styles beyond Tailwind */
+
+/* Smooth task completion transition */
+.task-item {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.task-item.completing {
+    opacity: 0.5;
+    transform: scale(0.98);
+}
+
+/* Collapsible tree arrow */
+.tree-toggle {
+    transition: transform 0.15s ease;
+    display: inline-block;
+}
+.tree-toggle.open {
+    transform: rotate(90deg);
+}
+
+/* Modal backdrop */
+#modal-backdrop {
+    backdrop-filter: blur(4px);
+}
+
+/* Progress grid cells */
+.progress-cell {
+    transition: opacity 0.1s;
+}
+.progress-cell:hover {
+    opacity: 0.8;
+}
+
+/* Sidebar overlay for mobile */
+#sidebar-overlay {
+    display: none;
+}
+@media (max-width: 768px) {
+    #sidebar {
+        left: -280px;
+        transition: left 0.25s ease;
+        width: 260px !important;
+    }
+    #sidebar.open {
+        left: 0;
+    }
+    #sidebar-overlay.open {
+        display: block;
+    }
+    main {
+        margin-left: 0 !important;
+    }
+}
