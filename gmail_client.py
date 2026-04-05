@@ -105,15 +105,28 @@ def get_auth_url():
             include_granted_scopes="true",
             prompt="consent",
         )
-        return auth_url, state
+        # Persist code_verifier in DB so it survives server restarts between connect and callback
+        code_verifier = getattr(flow, "code_verifier", None)
+        if code_verifier:
+            db.save_oauth_token("gmail_pkce", code_verifier)
+        return auth_url, state, code_verifier
     except Exception:
-        return None, None
+        return None, None, None
 
 
-def handle_callback(auth_code):
+def handle_callback(auth_code, code_verifier=None):
     """Exchange auth code for tokens, store in DB, return user's email."""
     flow = _build_flow()
+    # Retrieve code_verifier from DB if not passed (survives server restarts)
+    if not code_verifier:
+        row = db.get_oauth_token("gmail_pkce")
+        if row:
+            code_verifier = row["token_json"]
+    if code_verifier:
+        flow.code_verifier = code_verifier
     flow.fetch_token(code=auth_code)
+    # Clean up the temporary PKCE entry
+    db.delete_oauth_token("gmail_pkce")
     creds = flow.credentials
 
     token_data = {

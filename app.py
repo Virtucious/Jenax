@@ -1,11 +1,13 @@
 import json
-from flask import Flask, jsonify, request, render_template, redirect
+import os
+from flask import Flask, jsonify, request, render_template, redirect, session
 from datetime import date
 
 import database as db
 import planner
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
 db.init_db()
 
 
@@ -260,7 +262,7 @@ def gmail_connect():
     if not GOOGLE_CREDENTIALS_PATH:
         return redirect("/?gmail=no_credentials")
     import gmail_client
-    auth_url, _ = gmail_client.get_auth_url()
+    auth_url, state, _ = gmail_client.get_auth_url()
     if not auth_url:
         return redirect("/?gmail=no_credentials")
     return redirect(auth_url)
@@ -277,6 +279,8 @@ def gmail_callback():
         gmail_client.handle_callback(code)
         return redirect("/?gmail=connected")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return redirect(f"/?gmail=error")
 
 
