@@ -9,7 +9,7 @@ from google import genai
 import database as db
 from config import GEMINI_API_KEY
 
-_MODEL = "gemini-2.5-flash"
+_MODEL = "gemini-3-flash-preview"
 
 
 class BaseAgent:

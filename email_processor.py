@@ -7,7 +7,7 @@ from google import genai
 
 from config import GEMINI_API_KEY
 
-_MODEL = "gemini-2.5-flash"
+_MODEL = "gemini-3-flash-preview"
 
 
 def _get_client():
