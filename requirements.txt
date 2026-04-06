@@ -1,4 +1,5 @@
 flask
+flask-limiter
 google-genai
 python-dotenv
 google-auth

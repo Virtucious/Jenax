@@ -2,6 +2,8 @@ import json
 import os
 from flask import Flask, jsonify, request, render_template, redirect, session
 from datetime import date
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 import database as db
 import planner
@@ -9,6 +11,16 @@ import planner
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
 db.init_db()
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=["200 per day", "60 per hour"],
+    storage_uri="memory://",
+)
+
+# Stricter limit applied to auth routes (5 attempts per 15 minutes)
+_AUTH_LIMIT = "5 per 15 minutes"
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +269,7 @@ def gmail_status():
 
 
 @app.route("/auth/gmail/connect", methods=["GET"])
+@limiter.limit(_AUTH_LIMIT)
 def gmail_connect():
     from config import GOOGLE_CREDENTIALS_PATH
     if not GOOGLE_CREDENTIALS_PATH:
@@ -269,6 +282,7 @@ def gmail_connect():
 
 
 @app.route("/auth/gmail/callback", methods=["GET"])
+@limiter.limit(_AUTH_LIMIT)
 def gmail_callback():
     code = request.args.get("code")
     error = request.args.get("error")
@@ -285,6 +299,7 @@ def gmail_callback():
 
 
 @app.route("/auth/gmail/disconnect", methods=["POST"])
+@limiter.limit(_AUTH_LIMIT)
 def gmail_disconnect():
     import gmail_client
     gmail_client.disconnect()
@@ -684,6 +699,15 @@ def generate_plan_stream():
         mimetype="text/plain",
         headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Rate-limit error handler
+# ---------------------------------------------------------------------------
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify({"error": "Too many requests", "detail": str(e.description)}), 429
 
 
 # ---------------------------------------------------------------------------

@@ -29,7 +29,9 @@
       "Bash(python -c ':*)",
       "Bash(python -m venv .venv)",
       "Bash(.venv/Scripts/pip install:*)",
-      "Bash(.venv/Scripts/python -c ':*)"
+      "Bash(.venv/Scripts/python -c ':*)",
+      "Bash(grep -r \"api_key\\\\|API_KEY\\\\|password\\\\|PASSWORD\\\\|token\\\\|TOKEN\\\\|secret\\\\|SECRET\" /c/MyProjects/AI/Jenax/*.py)",
+      "Bash(python -m json.tool)"
     ]
   }
 }
