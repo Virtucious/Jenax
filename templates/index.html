@@ -65,6 +65,119 @@
     }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* ===== DARK MODE ===== */
+    html.dark { color-scheme: dark; }
+
+    /* Base */
+    html.dark body { background-color: #0e0e0e; color: #e7e5e5; }
+
+    /* Surface tokens */
+    html.dark .bg-surface,
+    html.dark .bg-background           { background-color: #0e0e0e; }
+    html.dark .bg-surface-container-lowest { background-color: #111111; }
+    html.dark .bg-surface-container-low    { background-color: #131313; }
+    html.dark .bg-surface-container        { background-color: #191a1a; }
+    html.dark .bg-surface-container-high   { background-color: #1f2020; }
+    html.dark .bg-surface-container-highest{ background-color: #252626; }
+    html.dark .bg-surface-variant          { background-color: #252626; }
+    html.dark .bg-surface-bright           { background-color: #2b2c2c; }
+
+    /* Borders using surface tokens */
+    html.dark .border-outline-variant\/10,
+    html.dark .border-outline-variant\/5,
+    html.dark .border-outline-variant\/30,
+    html.dark .border-outline-variant\/20   { border-color: rgba(72,72,72,0.4); }
+    html.dark .divide-outline-variant\/5 > * + * { border-color: rgba(72,72,72,0.25); }
+
+    /* Text tokens */
+    html.dark .text-on-surface          { color: #e7e5e5; }
+    html.dark .text-on-surface-variant  { color: #acabaa; }
+    html.dark .text-on-surface\/80      { color: rgba(231,229,229,0.8); }
+    html.dark .text-on-surface\/40      { color: rgba(231,229,229,0.4); }
+    html.dark .text-primary             { color: #b5cad4; }
+    html.dark .text-primary-dim         { color: #a8bcc6; }
+    html.dark .text-outline             { color: #767575; }
+
+    /* Primary background (streak card, buttons) */
+    html.dark .bg-primary              { background-color: #374952; }
+    html.dark .text-on-primary         { color: #e7e5e5; }
+    html.dark .bg-primary-container    { background-color: #2e3d45; }
+
+    /* Glass overlay (navbar) */
+    html.dark .glass-overlay {
+      background: rgba(14,14,14,0.75);
+      backdrop-filter: blur(20px);
+    }
+
+    /* Sidebar & hardcoded slate */
+    html.dark #sidebar {
+      background-color: #131313;
+      border-color: rgba(72,72,72,0.3);
+    }
+    html.dark .border-slate-200\/60,
+    html.dark .border-slate-200         { border-color: rgba(72,72,72,0.35); }
+    html.dark .bg-slate-50              { background-color: #131313; }
+    html.dark .text-slate-400           { color: #767575; }
+    html.dark .text-slate-500           { color: #9a9a9a; }
+    html.dark .text-slate-600           { color: #acabaa; }
+    html.dark .text-slate-800,
+    html.dark .text-slate-900           { color: #e7e5e5; }
+
+    /* Inputs & white backgrounds */
+    html.dark .bg-white                 { background-color: #1f2020; }
+    html.dark input, html.dark textarea, html.dark select {
+      background-color: #1f2020;
+      color: #e7e5e5;
+      border-color: rgba(72,72,72,0.5);
+    }
+    html.dark input::placeholder,
+    html.dark textarea::placeholder     { color: #767575; }
+
+    /* Mobile tab bar */
+    html.dark .md\:hidden.flex.border-b { background-color: #131313; border-color: rgba(72,72,72,0.35); }
+
+    /* Notification banner */
+    html.dark #notif-banner             { background-color: rgba(53,73,82,0.2); border-color: rgba(181,202,212,0.15); }
+
+    /* Carry-forward amber banner in dark */
+    html.dark #carry-banner             { background-color: rgba(120,80,0,0.25); border-color: rgba(217,119,6,0.25); }
+    html.dark #carry-banner span        { color: #fcd34d; }
+
+    /* Carried section label */
+    html.dark .bg-amber-50              { background-color: rgba(120,80,0,0.2); }
+    html.dark .border-amber-100\/60,
+    html.dark .border-amber-200\/60     { border-color: rgba(217,119,6,0.2); }
+    html.dark .text-amber-600           { color: #f59e0b; }
+    html.dark .text-amber-800           { color: #fcd34d; }
+
+    /* Modal backdrop / overlay */
+    html.dark #modal-backdrop { background-color: rgba(0,0,0,0.7); }
+
+    /* Modal panel */
+    html.dark #modal-panel {
+      background-color: #191a1a;
+      border-color: rgba(72,72,72,0.4);
+    }
+
+    /* Insight card */
+    html.dark #insight-card             { background-color: rgba(53,73,82,0.2); border-color: rgba(181,202,212,0.1); }
+
+    /* Shadow overrides — too light on dark BG */
+    html.dark .shadow-\[0_8px_32px_0_rgba\(42\2c 52\2c 57\2c 0\.04\)\] {
+      box-shadow: 0 8px 32px 0 rgba(0,0,0,0.3);
+    }
+
+    /* Tab buttons in dark */
+    html.dark #tab-btn-today,
+    html.dark #tab-btn-today-m          { color: #e7e5e5; border-color: #b5cad4; }
+    html.dark #tab-btn-weekly,
+    html.dark #tab-btn-weekly-m         { color: rgba(231,229,229,0.5); }
+    html.dark #tab-btn-weekly:hover,
+    html.dark #tab-btn-weekly-m:hover   { color: #e7e5e5; }
+
+    /* Dark mode toggle button */
+    #dark-toggle { transition: opacity 0.2s; }
   </style>
 </head>
 <body class="bg-surface text-on-surface antialiased min-h-screen">
@@ -104,8 +217,13 @@
       Weekly Review
     </button>
   </div>
-  <!-- Right spacer -->
-  <div class="hidden md:block w-24"></div>
+  <!-- Right actions -->
+  <div class="hidden md:flex items-center gap-3 w-24 justify-end">
+    <button id="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode"
+      class="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors">
+      <span id="dark-toggle-icon" class="material-symbols-outlined text-[20px]">dark_mode</span>
+    </button>
+  </div>
 </nav>
 
 <!-- Layout wrapper -->
@@ -155,6 +273,16 @@
         <!-- Populated by JS -->
       </div>
     </div>
+    <!-- Agents -->
+    <div class="px-4 py-3 border-t border-slate-200/60">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-[10px] font-bold text-outline uppercase tracking-widest">Agents</div>
+        <button onclick="openAgentLogsModal()" class="text-[10px] text-primary hover:text-primary-dim font-semibold transition-colors">Logs</button>
+      </div>
+      <div id="agent-status-sidebar" class="flex flex-col gap-1 text-[11px] text-on-surface-variant">
+        <span class="text-outline italic">Loading…</span>
+      </div>
+    </div>
   </aside>
 
   <!-- Main content -->
@@ -179,9 +307,18 @@
       <!-- ================================================================ -->
       <div id="tab-today" class="flex flex-col gap-6">
 
+        <!-- Accountability alerts -->
+        <div id="accountability-alerts" class="hidden flex flex-col gap-2"></div>
+
         <!-- Daily Insight card -->
         <div id="insight-card" class="hidden bg-primary/5 rounded-xl border border-primary/10 p-6">
-          <div class="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-2">Daily Insight</div>
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-[10px] font-bold text-primary uppercase tracking-[0.2em]">Daily Insight</div>
+            <div class="flex items-center gap-2">
+              <span id="workload-badge" class="hidden text-xs font-semibold px-2.5 py-0.5 rounded-full"></span>
+              <span id="health-badge" class="hidden text-xs font-semibold px-2.5 py-0.5 rounded-full"></span>
+            </div>
+          </div>
           <p id="insight-text" class="text-sm text-primary-dim leading-relaxed italic"></p>
           <div class="mt-3 flex items-center gap-2">
             <div class="w-6 h-[1px] bg-primary/30"></div>
@@ -229,6 +366,18 @@
             </div>
           </div>
           <span id="email-error-msg" class="hidden text-sm text-error p-4 block"></span>
+        </div>
+
+        <!-- Learning Corner (only if Research Agent returned data) -->
+        <div id="learning-corner" class="hidden bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/5 flex items-center justify-between">
+            <h2 class="text-sm font-semibold tracking-tight text-on-surface flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px] text-primary">menu_book</span>
+              Learning Corner
+            </h2>
+            <button onclick="openResourcesModal()" class="text-[10px] uppercase tracking-widest font-bold text-primary hover:text-primary-dim transition-colors">Manage Resources</button>
+          </div>
+          <div id="learning-corner-content" class="p-6 flex flex-col gap-4"></div>
         </div>
 
         <!-- Carry-forward banner -->
@@ -643,7 +792,141 @@
   </div>
 </div>
 
+<!-- Agent Logs Modal -->
+<div id="agent-logs-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onclick="event.stopPropagation()">
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between flex-shrink-0">
+      <h3 class="font-semibold text-on-surface flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary text-[18px]">smart_toy</span>
+        Agent Logs
+      </h3>
+      <div class="flex items-center gap-3">
+        <select id="agent-log-filter" onchange="loadAgentLogs()" class="text-xs border border-outline-variant/30 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/30">
+          <option value="">All agents</option>
+          <option value="planner">Planner</option>
+          <option value="email">Email</option>
+          <option value="research">Research</option>
+          <option value="accountability">Accountability</option>
+        </select>
+        <button onclick="closeAgentLogsModal()" class="text-outline hover:text-on-surface text-xl leading-none">&times;</button>
+      </div>
+    </div>
+    <div id="agent-logs-list" class="overflow-y-auto flex-1 p-4 flex flex-col gap-2 text-sm"></div>
+  </div>
+</div>
+
+<!-- Learning Resources Modal -->
+<div id="resources-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between flex-shrink-0">
+      <h3 class="font-semibold text-on-surface flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary text-[18px]">menu_book</span>
+        Learning Resources
+      </h3>
+      <div class="flex items-center gap-3">
+        <button onclick="showResourceForm()" class="text-[10px] uppercase tracking-widest font-bold text-primary hover:text-primary-dim transition-colors">+ Add</button>
+        <button onclick="closeResourcesModal()" class="text-outline hover:text-on-surface text-xl leading-none">&times;</button>
+      </div>
+    </div>
+
+    <!-- Add/Edit form (hidden by default) -->
+    <div id="resource-form" class="hidden px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low/30 flex flex-col gap-3">
+      <input id="res-id" type="hidden" value="" />
+      <div class="grid grid-cols-2 gap-3">
+        <div class="col-span-2">
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Title *</label>
+          <input id="res-title" type="text" placeholder="Resource title…" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Author</label>
+          <input id="res-author" type="text" placeholder="Author…" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Type</label>
+          <select id="res-type" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+            <option value="book">Book</option>
+            <option value="course">Course</option>
+            <option value="tutorial">Tutorial</option>
+            <option value="article">Article</option>
+            <option value="video">Video</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Total units</label>
+          <input id="res-total" type="number" min="1" placeholder="e.g. 12" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Unit label</label>
+          <select id="res-unit-label" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+            <option value="chapter">chapter</option>
+            <option value="module">module</option>
+            <option value="lesson">lesson</option>
+            <option value="page">page</option>
+            <option value="section">section</option>
+            <option value="video">video</option>
+          </select>
+        </div>
+        <div class="col-span-2">
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Linked Goal</label>
+          <select id="res-goal" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+            <option value="">No goal</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="saveResource()" class="signature-gradient text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
+        <button onclick="hideResourceForm()" class="text-outline hover:text-on-surface px-3 py-2 text-sm transition-colors">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Progress update inline form -->
+    <div id="progress-form" class="hidden px-6 py-3 border-b border-outline-variant/10 bg-amber-50/50 flex items-center gap-3">
+      <span class="text-xs text-on-surface-variant flex-1" id="progress-form-label">Update progress</span>
+      <input id="progress-units" type="number" min="0" placeholder="Units done" class="border border-outline-variant/30 rounded-xl px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+      <button onclick="submitProgress()" class="signature-gradient text-white px-3 py-1.5 rounded-xl text-xs font-medium hover:opacity-90">Save</button>
+      <button onclick="hideProgressForm()" class="text-outline hover:text-on-surface text-xs transition-colors">Cancel</button>
+      <input id="progress-resource-id" type="hidden" value="" />
+    </div>
+
+    <div id="resources-list" class="overflow-y-auto flex-1 p-4 flex flex-col gap-3"></div>
+  </div>
+</div>
+
 <script>
+// ===== Dark Mode =====
+function applyDarkMode(dark) {
+  if (dark) {
+    document.documentElement.classList.add('dark');
+    document.documentElement.classList.remove('light');
+  } else {
+    document.documentElement.classList.remove('dark');
+    document.documentElement.classList.add('light');
+  }
+  const icon = document.getElementById('dark-toggle-icon');
+  if (icon) icon.textContent = dark ? 'light_mode' : 'dark_mode';
+  const btn = document.getElementById('dark-toggle');
+  if (btn) {
+    btn.classList.toggle('text-yellow-400', dark);
+    btn.classList.toggle('hover:text-yellow-300', dark);
+    btn.classList.toggle('text-slate-500', !dark);
+    btn.classList.toggle('hover:text-slate-800', !dark);
+  }
+}
+
+function toggleDarkMode() {
+  const isDark = document.documentElement.classList.contains('dark');
+  localStorage.setItem('jenax_dark_mode', !isDark ? '1' : '0');
+  applyDarkMode(!isDark);
+}
+
+// Apply on load (before DOMContentLoaded to avoid flash)
+(function() {
+  const saved = localStorage.getItem('jenax_dark_mode');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyDarkMode(saved !== null ? saved === '1' : prefersDark);
+})();
+
 // ===== State =====
 let goalsFlat = [];
 let goalsTree = [];
@@ -653,6 +936,9 @@ let currentWeekStart = getMondayOf(new Date());
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
+  // Sync dark mode button icon after DOM is ready
+  applyDarkMode(document.documentElement.classList.contains('dark'));
+
   document.getElementById('nav-date').textContent = new Date().toLocaleDateString(undefined, {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
@@ -674,6 +960,8 @@ function loadAll() {
   loadDailyReview();
   loadGmailStatus();
   loadTelegramStatus();
+  loadInsights();
+  loadAgentStatus();
 }
 
 // ===== Tab switching =====
@@ -964,6 +1252,10 @@ function taskHTML(t, isCarriedRow) {
     ? `<span class="text-orange-400 text-xs" title="This task has been carried forward ${t.carry_count} times">⚠ ×${t.carry_count}</span>`
     : '';
 
+  const energyMap = { high: ['⚡', 'text-amber-500'], medium: ['☕', 'text-slate-400'], low: ['🌿', 'text-emerald-500'] };
+  const [energyIcon, energyCls] = energyMap[t.energy_level] || [];
+  const energyBadge = energyIcon ? `<span class="${energyCls} text-xs" title="${t.energy_level} energy">${energyIcon}</span>` : '';
+
   return `
   <div class="task-item flex items-start gap-3 px-6 py-4 hover:bg-surface-container-low/30 transition-colors ${t.completed ? 'opacity-60' : ''}" data-id="${t.id}">
     <button onclick="toggleTask(${t.id})" class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-2 ${t.completed ? 'bg-primary border-primary' : 'border-outline-variant/40 hover:border-primary'} flex items-center justify-center transition-colors">
@@ -971,6 +1263,7 @@ function taskHTML(t, isCarriedRow) {
     </button>
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2 flex-wrap">
+        ${energyBadge}
         <span class="font-medium text-sm ${t.completed ? 'line-through text-outline' : 'text-on-surface'}">${esc(t.title)}</span>
         <span class="${priorityBadge} text-xs px-1.5 py-0.5 rounded-full font-medium">${t.priority || 'medium'}</span>
         ${carriedBadge}${carryWarning}${sourceStr}
@@ -1062,28 +1355,57 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.activeElement.id === 'new-task-title') submitAddTask();
 });
 
-// ===== AI Generate =====
+// ===== AI Generate (streaming) =====
 async function generatePlan() {
   const btn = document.getElementById('generate-btn');
-  const status = document.getElementById('generate-status');
+  const statusEl = document.getElementById('generate-status');
   const errEl = document.getElementById('error-msg');
 
   btn.disabled = true;
   btn.classList.add('opacity-50');
-  status.classList.remove('hidden');
+  statusEl.classList.remove('hidden');
+  statusEl.querySelector('svg + span, span') && (statusEl.textContent = '');
+  statusEl.innerHTML = `<svg class="w-4 h-4 inline animate-spin mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"></path></svg><span id="generate-status-text">Starting agents…</span>`;
   errEl.classList.add('hidden');
 
-  try {
-    const res = await fetch('/api/generate-plan', { method: 'POST' });
-    const data = await res.json();
+  const agentLabels = { planner: 'Planner', email: 'Email', research: 'Research', accountability: 'Accountability' };
+  const statusText = document.getElementById('generate-status-text');
 
-    if (data.error) {
-      errEl.textContent = data.error;
-      errEl.classList.remove('hidden');
-    } else {
-      if (data.daily_insight) showInsight(data.daily_insight);
-      await loadTasks();
-      await loadProgress();
+  try {
+    const response = await fetch('/api/generate-plan/stream', { method: 'POST' });
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const lines = decoder.decode(value).split('\n').filter(Boolean);
+      for (const line of lines) {
+        try {
+          const update = JSON.parse(line);
+          const label = agentLabels[update.agent] || update.agent;
+          if (update.status === 'running') {
+            if (statusText) statusText.textContent = `${label} agent thinking…`;
+          } else if (update.status === 'done') {
+            if (update.agent === 'planner' && update.data) {
+              const d = update.data;
+              if (d.daily_insight) showInsight(d.daily_insight, d.workload_assessment, d.overall_health);
+              if (d.accountability_insights && d.accountability_insights.length) renderAccountabilityAlerts(d.accountability_insights);
+              if (d.learning_tasks && d.learning_tasks.length || d.resource_suggestions && d.resource_suggestions.length || d.progress_alerts && d.progress_alerts.length) {
+                renderLearningCorner(d.learning_tasks || [], d.resource_suggestions || [], d.progress_alerts || []);
+              }
+              await loadTasks();
+              await loadProgress();
+            } else if (update.agent === 'accountability' && update.data) {
+              if (update.data.insights && update.data.insights.length) renderAccountabilityAlerts(update.data.insights);
+            } else if (update.agent === 'research' && update.data) {
+              renderLearningCorner(update.data.learning_tasks || [], update.data.resource_suggestions || [], update.data.progress_alerts || []);
+            }
+          } else if (update.status === 'error') {
+            console.warn(`Agent ${update.agent} error:`, update.error);
+          }
+        } catch (_) {}
+      }
     }
   } catch (e) {
     errEl.textContent = 'Network error. Please try again.';
@@ -1091,19 +1413,350 @@ async function generatePlan() {
   } finally {
     btn.disabled = false;
     btn.classList.remove('opacity-50');
-    status.classList.add('hidden');
+    statusEl.classList.add('hidden');
   }
 }
 
-function showInsight(text) {
+function showInsight(text, workload, health) {
   document.getElementById('insight-text').textContent = text;
   document.getElementById('insight-card').classList.remove('hidden');
   sessionStorage.setItem('daily_insight', text);
+
+  // Workload badge
+  const wBadge = document.getElementById('workload-badge');
+  if (workload) {
+    const wMap = { light: ['bg-emerald-100 text-emerald-700', 'Light'], moderate: ['bg-amber-100 text-amber-700', 'Moderate'], heavy: ['bg-red-100 text-red-700', 'Heavy'] };
+    const [cls, label] = wMap[workload] || ['bg-surface-container text-on-surface-variant', workload];
+    wBadge.className = `text-xs font-semibold px-2.5 py-0.5 rounded-full ${cls}`;
+    wBadge.textContent = `Workload: ${label}`;
+    wBadge.classList.remove('hidden');
+    sessionStorage.setItem('workload_assessment', workload);
+  }
+
+  // Health badge
+  const hBadge = document.getElementById('health-badge');
+  if (health) {
+    const hMap = { thriving: ['bg-emerald-100 text-emerald-700', 'Thriving'], steady: ['bg-blue-100 text-blue-700', 'Steady'], struggling: ['bg-amber-100 text-amber-700', 'Struggling'], critical: ['bg-red-100 text-red-700', 'Critical'] };
+    const [cls, label] = hMap[health] || ['bg-surface-container text-on-surface-variant', health];
+    hBadge.className = `text-xs font-semibold px-2.5 py-0.5 rounded-full ${cls}`;
+    hBadge.textContent = `Health: ${label}`;
+    hBadge.classList.remove('hidden');
+    sessionStorage.setItem('overall_health', health);
+  }
 }
 
 function updateInsightIfStored() {
   const stored = sessionStorage.getItem('daily_insight');
-  if (stored) showInsight(stored);
+  if (stored) showInsight(stored, sessionStorage.getItem('workload_assessment'), sessionStorage.getItem('overall_health'));
+}
+
+// ===== Accountability Alerts =====
+async function loadInsights() {
+  try {
+    const res = await fetch('/api/insights');
+    const insights = await res.json();
+    if (insights && insights.length) renderAccountabilityAlerts(insights);
+  } catch (e) {}
+}
+
+function renderAccountabilityAlerts(insights) {
+  const container = document.getElementById('accountability-alerts');
+  if (!insights || !insights.length) { container.classList.add('hidden'); return; }
+
+  // Only show critical/warning as banners; info as collapsible
+  const banners = insights.filter(i => i.severity === 'critical' || i.severity === 'warning');
+  const celebrations = insights.filter(i => i.type === 'celebration');
+  const infos = insights.filter(i => i.severity === 'info' && i.type !== 'celebration');
+
+  const borderMap = { critical: 'border-l-4 border-red-400 bg-red-50', warning: 'border-l-4 border-amber-400 bg-amber-50', info: 'border-l-4 border-blue-300 bg-blue-50' };
+  const iconMap = { warning: '⚠', critical: '🚨', pattern: '📊', nudge: '👉', celebration: '🎉' };
+
+  let html = '';
+  for (const ins of [...banners, ...celebrations]) {
+    const cls = ins.type === 'celebration' ? 'border-l-4 border-emerald-400 bg-emerald-50' : (borderMap[ins.severity] || borderMap.info);
+    const icon = iconMap[ins.type] || iconMap[ins.severity] || '💡';
+    html += `
+    <div class="${cls} rounded-xl px-5 py-4 flex items-start justify-between gap-3">
+      <div class="flex items-start gap-3 flex-1">
+        <span class="text-lg flex-shrink-0">${icon}</span>
+        <div class="flex-1">
+          <div class="text-sm font-semibold text-on-surface">${esc(ins.title)}</div>
+          <p class="text-xs text-on-surface-variant mt-0.5 leading-relaxed">${esc(ins.description || '')}</p>
+          ${ins.suggested_action ? `<p class="text-xs text-primary mt-1 font-medium">→ ${esc(ins.suggested_action)}</p>` : ''}
+        </div>
+      </div>
+      <button onclick="acknowledgeInsight(${ins.id || 0}, this.closest('[class*=rounded-xl]'))" class="text-xs font-semibold text-outline hover:text-on-surface transition-colors flex-shrink-0 mt-0.5">Got it</button>
+    </div>`;
+  }
+
+  if (infos.length) {
+    html += `<details class="bg-surface-container-low/50 rounded-xl border border-outline-variant/10">
+      <summary class="px-4 py-2.5 text-xs font-semibold text-outline cursor-pointer list-none flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-[14px]">info</span>
+        ${infos.length} pattern insight${infos.length > 1 ? 's' : ''}
+      </summary>
+      <div class="px-4 pb-3 flex flex-col gap-2 text-xs text-on-surface-variant">
+        ${infos.map(i => `<div><span class="font-semibold text-on-surface">${esc(i.title)}</span> — ${esc(i.description || '')}</div>`).join('')}
+      </div>
+    </details>`;
+  }
+
+  container.innerHTML = html;
+  container.classList.toggle('hidden', !html);
+}
+
+async function acknowledgeInsight(id, el) {
+  if (id) await fetch(`/api/insights/${id}/acknowledge`, { method: 'PATCH' });
+  if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }
+}
+
+// ===== Learning Corner =====
+function renderLearningCorner(learningTasks, resourceSuggestions, progressAlerts) {
+  const section = document.getElementById('learning-corner');
+  const content = document.getElementById('learning-corner-content');
+
+  if (!learningTasks.length && !resourceSuggestions.length && !progressAlerts.length) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  const alertMap = {};
+  for (const a of progressAlerts) alertMap[a.resource_id] = a.message;
+
+  let html = '';
+
+  if (learningTasks.length) {
+    html += `<div class="flex flex-col gap-2">`;
+    for (const t of learningTasks) {
+      const alertMsg = t.resource_id ? alertMap[t.resource_id] : null;
+      html += `<div class="bg-surface-container-low/40 rounded-xl px-4 py-3 border border-outline-variant/10">
+        <div class="flex items-start gap-2">
+          <span class="text-primary text-xs mt-0.5">📚</span>
+          <div class="flex-1">
+            <div class="text-sm font-medium text-on-surface">${esc(t.title)}</div>
+            ${t.description ? `<p class="text-xs text-on-surface-variant mt-0.5">${esc(t.description)}</p>` : ''}
+            <div class="flex items-center gap-2 mt-1 text-xs text-outline">
+              ${t.estimated_minutes ? `<span>~${t.estimated_minutes}min</span>` : ''}
+              ${t.task_type ? `<span class="capitalize">${t.task_type.replace('_', ' ')}</span>` : ''}
+            </div>
+            ${alertMsg ? `<p class="text-xs text-amber-600 mt-1 font-medium">⚠ ${esc(alertMsg)}</p>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (resourceSuggestions.length) {
+    html += `<div class="border-t border-outline-variant/5 pt-3">
+      <div class="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Suggested Resources</div>
+      <div class="flex flex-col gap-2">`;
+    for (const s of resourceSuggestions) {
+      html += `<div class="flex items-start gap-3 text-sm">
+        <span class="text-primary">💡</span>
+        <div><span class="font-medium text-on-surface">${esc(s.title)}</span>
+        <span class="text-xs text-outline ml-1">(${s.type})</span>
+        ${s.reason ? `<p class="text-xs text-on-surface-variant">${esc(s.reason)}</p>` : ''}
+        </div>
+        <button onclick="quickAddResource(${JSON.stringify(s).replace(/"/g, '&quot;')})" class="text-[10px] font-bold text-primary hover:text-primary-dim ml-auto flex-shrink-0 transition-colors">+ Add</button>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  content.innerHTML = html;
+  section.classList.remove('hidden');
+}
+
+// ===== Agent Status Sidebar =====
+async function loadAgentStatus() {
+  try {
+    const res = await fetch('/api/agents/status');
+    const data = await res.json();
+    renderAgentStatusSidebar(data.agents || []);
+  } catch (e) {}
+}
+
+function renderAgentStatusSidebar(agents) {
+  const el = document.getElementById('agent-status-sidebar');
+  if (!el || !agents.length) return;
+  const icons = { planner: '🧠', email: '📧', research: '📚', accountability: '👁' };
+  el.innerHTML = agents.map(a => {
+    const icon = icons[a.name] || '🤖';
+    const timeStr = a.last_run ? new Date(a.last_run).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'never';
+    const statusIcon = a.last_status === 'success' ? '<span class="text-emerald-500">✓</span>' : a.last_status === 'failed' ? '<span class="text-error">✗</span>' : '<span class="text-outline">—</span>';
+    return `<div class="flex items-center gap-1.5">
+      <span>${icon}</span>
+      <span class="flex-1 capitalize">${a.name}</span>
+      ${statusIcon}
+      <span class="text-outline">${timeStr}</span>
+    </div>`;
+  }).join('');
+}
+
+// ===== Agent Logs Modal =====
+async function openAgentLogsModal() {
+  document.getElementById('agent-logs-modal').classList.remove('hidden');
+  await loadAgentLogs();
+}
+
+function closeAgentLogsModal() {
+  document.getElementById('agent-logs-modal').classList.add('hidden');
+}
+
+async function loadAgentLogs() {
+  const agent = document.getElementById('agent-log-filter').value;
+  const listEl = document.getElementById('agent-logs-list');
+  listEl.innerHTML = '<p class="text-outline text-sm italic">Loading…</p>';
+  try {
+    const url = `/api/agents/logs?limit=30${agent ? `&agent=${agent}` : ''}`;
+    const res = await fetch(url);
+    const logs = await res.json();
+    if (!logs.length) { listEl.innerHTML = '<p class="text-outline text-sm italic">No logs yet.</p>'; return; }
+    listEl.innerHTML = logs.map(l => {
+      const ts = new Date(l.created_at).toLocaleString();
+      const statusCls = l.success ? 'text-emerald-600' : 'text-error';
+      const statusIcon = l.success ? '✓' : '✗';
+      return `<div class="border border-outline-variant/15 rounded-xl px-4 py-3 bg-surface-container-low/30">
+        <div class="flex items-center gap-2">
+          <span class="${statusCls} font-bold text-xs">${statusIcon}</span>
+          <span class="font-semibold text-xs text-on-surface capitalize">${esc(l.agent_name)}</span>
+          <span class="text-[10px] text-outline bg-surface-container px-2 py-0.5 rounded-full">${esc(l.trigger_type)}</span>
+          <span class="text-[10px] text-outline ml-auto">${l.duration_ms ? l.duration_ms + 'ms' : ''}</span>
+        </div>
+        <div class="text-[11px] text-on-surface-variant mt-1">${ts}</div>
+        ${l.input_summary ? `<div class="text-[11px] text-outline mt-0.5">${esc(l.input_summary)}</div>` : ''}
+        ${l.error_message ? `<div class="text-[11px] text-error mt-0.5">${esc(l.error_message)}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = '<p class="text-error text-sm">Failed to load logs.</p>';
+  }
+}
+
+// ===== Learning Resources Modal =====
+let _editingResourceId = null;
+let _progressResourceId = null;
+
+async function openResourcesModal() {
+  document.getElementById('resources-modal').classList.remove('hidden');
+  hideResourceForm();
+  hideProgressForm();
+  // Populate goal dropdown
+  const sel = document.getElementById('res-goal');
+  sel.innerHTML = '<option value="">No goal</option>' + goalsFlat.map(g => `<option value="${g.id}">${esc(g.title)}</option>`).join('');
+  await loadResources();
+}
+
+function closeResourcesModal() {
+  document.getElementById('resources-modal').classList.add('hidden');
+}
+
+function showResourceForm(resource = null) {
+  _editingResourceId = resource ? resource.id : null;
+  document.getElementById('res-id').value = _editingResourceId || '';
+  document.getElementById('res-title').value = resource ? resource.title : '';
+  document.getElementById('res-author').value = resource ? (resource.author || '') : '';
+  document.getElementById('res-type').value = resource ? resource.type : 'book';
+  document.getElementById('res-total').value = resource ? (resource.total_units || '') : '';
+  document.getElementById('res-unit-label').value = resource ? (resource.unit_label || 'chapter') : 'chapter';
+  document.getElementById('res-goal').value = resource ? (resource.goal_id || '') : '';
+  document.getElementById('resource-form').classList.remove('hidden');
+}
+
+function hideResourceForm() {
+  document.getElementById('resource-form').classList.add('hidden');
+  _editingResourceId = null;
+}
+
+async function saveResource() {
+  const title = document.getElementById('res-title').value.trim();
+  if (!title) { showToast('Title is required.', 'error'); return; }
+  const body = {
+    title,
+    author: document.getElementById('res-author').value.trim() || null,
+    type: document.getElementById('res-type').value,
+    total_units: Number(document.getElementById('res-total').value) || null,
+    unit_label: document.getElementById('res-unit-label').value,
+    goal_id: document.getElementById('res-goal').value ? Number(document.getElementById('res-goal').value) : null,
+  };
+  if (_editingResourceId) {
+    await fetch(`/api/resources/${_editingResourceId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } else {
+    await fetch('/api/resources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
+  hideResourceForm();
+  await loadResources();
+}
+
+function showProgressForm(resourceId, label) {
+  _progressResourceId = resourceId;
+  document.getElementById('progress-resource-id').value = resourceId;
+  document.getElementById('progress-form-label').textContent = `Update: ${label}`;
+  document.getElementById('progress-units').value = '';
+  document.getElementById('progress-form').classList.remove('hidden');
+}
+
+function hideProgressForm() {
+  document.getElementById('progress-form').classList.add('hidden');
+  _progressResourceId = null;
+}
+
+async function submitProgress() {
+  const id = document.getElementById('progress-resource-id').value;
+  const units = Number(document.getElementById('progress-units').value);
+  if (!id || isNaN(units)) return;
+  await fetch(`/api/resources/${id}/progress`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ completed_units: units }) });
+  hideProgressForm();
+  await loadResources();
+}
+
+async function loadResources() {
+  const listEl = document.getElementById('resources-list');
+  listEl.innerHTML = '<p class="text-outline text-sm italic p-2">Loading…</p>';
+  try {
+    const res = await fetch('/api/resources');
+    const resources = await res.json();
+    if (!resources.length) { listEl.innerHTML = '<p class="text-outline text-sm italic p-2">No resources yet. Click + Add to get started.</p>'; return; }
+    const typeIcons = { book: '📖', course: '🎓', tutorial: '📝', article: '📄', video: '🎥', other: '📦' };
+    listEl.innerHTML = resources.map(r => {
+      const icon = typeIcons[r.type] || '📦';
+      const hasProg = r.total_units > 0;
+      const pct = hasProg ? Math.round((r.completed_units / r.total_units) * 100) : null;
+      const progressBar = hasProg ? `<div class="mt-1.5 bg-surface-container-high rounded-full h-1.5 w-full"><div class="bg-primary rounded-full h-1.5 transition-all" style="width:${pct}%"></div></div>` : '';
+      const goal = r.goal_id ? goalsFlat.find(g => g.id === r.goal_id) : null;
+      return `<div class="border border-outline-variant/20 rounded-xl p-4 bg-surface-container-low/30">
+        <div class="flex items-start gap-3">
+          <span class="text-lg">${icon}</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-sm text-on-surface">${esc(r.title)}</div>
+            ${r.author ? `<div class="text-xs text-outline mt-0.5">by ${esc(r.author)}</div>` : ''}
+            ${goal ? `<div class="text-xs text-primary mt-0.5">${esc(goal.title)}</div>` : ''}
+            ${hasProg ? `<div class="text-xs text-on-surface-variant mt-1">${r.completed_units}/${r.total_units} ${r.unit_label}s (${pct}%)${progressBar}</div>` : ''}
+          </div>
+        </div>
+        <div class="flex gap-2 mt-3">
+          ${hasProg ? `<button onclick="showProgressForm(${r.id}, '${esc(r.title)}')" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">Update Progress</button>` : ''}
+          <button onclick="showResourceForm(${JSON.stringify(r).replace(/"/g, '&quot;')})" class="text-xs px-3 py-1.5 rounded-lg border border-outline-variant/30 text-outline hover:text-on-surface transition-colors">Edit</button>
+          <button onclick="deleteResource(${r.id})" class="text-xs px-3 py-1.5 rounded-lg text-error/70 hover:text-error hover:bg-error/5 transition-colors">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = '<p class="text-error text-sm p-2">Failed to load resources.</p>';
+  }
+}
+
+async function deleteResource(id) {
+  if (!confirm('Delete this resource?')) return;
+  await fetch(`/api/resources/${id}`, { method: 'DELETE' });
+  await loadResources();
+}
+
+async function quickAddResource(suggestion) {
+  const body = { title: suggestion.title, type: suggestion.type, goal_id: suggestion.goal_id || null };
+  await fetch('/api/resources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  showToast(`"${suggestion.title}" added to resources!`);
 }
 
 // ===== Daily Review (Feature 2) =====

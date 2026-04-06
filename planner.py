@@ -204,6 +204,44 @@ Respond ONLY with valid JSON, no markdown, no explanation:
 
 
 def generate_daily_plan():
+    """
+    Entry point for plan generation.
+    Delegates to the multi-agent orchestrator; falls back to single-prompt mode on failure.
+    """
+    from agents.orchestrator import Orchestrator
+    try:
+        orchestrator = Orchestrator()
+        result = orchestrator.generate_daily_plan()
+        # Persist tasks to DB (orchestrator returns task dicts, not inserted rows)
+        today_str = date.today().isoformat()
+        inserted = []
+        for t in result.get("tasks", []):
+            task = db.create_task(
+                title=t.get("title", "Untitled"),
+                description=t.get("description"),
+                priority=t.get("priority", "medium"),
+                goal_id=t.get("goal_id"),
+                date_str=today_str,
+                source="ai",
+                estimated_minutes=t.get("estimated_minutes"),
+            )
+            inserted.append(task)
+
+        all_today = db.get_tasks_for_date(today_str)
+        done = sum(1 for t in all_today if t["completed"])
+        db.upsert_reflection(today_str, done, len(all_today),
+                             ai_summary=result.get("daily_insight"))
+
+        result["tasks"] = inserted
+        return result
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Orchestrator failed, falling back to legacy: {e}")
+        return _generate_daily_plan_legacy()
+
+
+def _generate_daily_plan_legacy():
+    """Legacy single-prompt plan generation (fallback)."""
     active_goals = db.get_active_goals_flat()
     history = db.get_recent_task_history(days=7)
     today_tasks = db.get_tasks_for_date(date.today().isoformat())

@@ -1,742 +1,1121 @@
-# jenax Phase 4 — Telegram Bot, Scheduler & Notifications
+# jenax Phase 5 — Multi-Agent System
 
 ## Context
 
-jenax Phases 1-3 are complete and running. The app has:
-- Goal hierarchy with CRUD
+jenax Phases 1-4 are complete and running. The app has:
+- Goal hierarchy with CRUD (yearly → monthly → weekly)
 - AI-generated daily tasks via Gemini Flash
 - Task carry-forward, end-of-day reviews, weekly reviews
 - Smarter plan generation using review history and patterns
 - Gmail integration with OAuth, email scanning, action item extraction
+- Telegram bot with full command set and inline keyboards
+- APScheduler for automated morning plans, evening reminders, email scans
+- Browser notifications
 - Progress stats, streaks, trends
 - Single-page Flask app, SQLite database, Tailwind CSS frontend
 
-This phase adds three things:
-1. **Telegram bot** — sends your morning plan to your phone and lets you interact with tasks from Telegram
-2. **Background scheduler** — auto-generates plans and scans emails on a schedule
-3. **Browser notifications** — gentle reminders during the day
+This phase refactors the existing single-prompt AI into a **multi-agent architecture** where specialized agents handle different domains. Each agent has its own persona, context window, and prompt template, but they all share the same database and use the same Gemini API.
 
-Do NOT break any existing functionality.
+Do NOT break any existing functionality. The app should work identically from the user's perspective — what changes is the quality and depth of AI outputs.
 
 ---
 
-## Part 1: Telegram Bot
+## Architecture Overview
 
-### What It Does
+### What Is an "Agent" in This System?
 
-A Telegram bot that:
-- Sends your morning plan at a scheduled time
-- Sends end-of-day review reminders
-- Lets you check off tasks by tapping buttons
-- Lets you ask for a quick status update anytime
-- Sends alerts when high-priority email action items come in
+An agent is NOT a separate process, server, or model. It is:
+- A **prompt template** with a specific persona and instruction set
+- A **context builder** that gathers the right data from the database for that agent's domain
+- A **response parser** that handles the agent's structured output
+- An **entry in the database** tracking the agent's outputs over time
 
-### Prerequisites (User Setup)
+All agents call the same Gemini Flash API. The difference is what context they receive and what they're asked to do.
 
-Document these in README:
+### The Agents
 
-1. Open Telegram, search for `@BotFather`
-2. Send `/newbot`
-3. Choose a name (e.g., "jenax Bot") and username (e.g., "myjenax_bot")
-4. BotFather gives you a token like `7123456789:AAHxyz...`
-5. Add to `.env`:
-   ```
-   TELEGRAM_BOT_TOKEN=your-bot-token-here
-   ```
-6. Start the app, then open your bot in Telegram and send `/start`
-7. The app registers your chat ID automatically
+| Agent | Role | Triggers |
+|-------|------|----------|
+| **Planner** | Daily task generation, schedule optimization | Morning routine, manual "Generate Plan" button |
+| **Email** | Email triage, action extraction, reply drafting suggestions | Email scan (scheduled or manual) |
+| **Research** | Learning path tracking, resource finding, course/book progress | When goals involve learning, manual "Research" button |
+| **Accountability** | Pattern analysis, behavioral nudges, goal health monitoring | Weekly review, streak breaks, goal neglect detection |
+| **Orchestrator** | Coordinates agents, resolves conflicts, produces final output | Runs before final output is shown to user |
 
-### Tech Stack Addition
+### How They Work Together
 
-| What | Package | Why |
-|------|---------|-----|
-| Telegram Bot | `python-telegram-bot` | Mature, async-capable, simple API |
-
-Add to `requirements.txt`:
 ```
-python-telegram-bot==21.*
+User clicks "Generate Plan"
+        │
+        ▼
+   Orchestrator
+        │
+        ├── Calls Planner Agent
+        │     → gets task list based on goals + history
+        │
+        ├── Calls Email Agent (if Gmail connected)
+        │     → gets pending email action items
+        │
+        ├── Calls Research Agent (if learning goals exist)
+        │     → gets learning tasks and resource suggestions
+        │
+        ├── Calls Accountability Agent
+        │     → gets behavioral nudges and warnings
+        │
+        ▼
+   Orchestrator merges all outputs
+        │
+        ▼
+   Final plan shown to user
 ```
 
-### Project Structure (New Files)
+This is a **sequential pipeline**, not parallel. Each agent runs one after another. The orchestrator collects all outputs and does a final merge/dedup pass.
+
+---
+
+## Project Structure (New/Modified Files)
 
 ```
 jenax/
 ├── ... (existing files)
-├── telegram_bot.py          # Bot setup, command handlers, message sending
-└── scheduler.py             # APScheduler-based background task runner
+├── agents/
+│   ├── __init__.py
+│   ├── base.py              # Base agent class
+│   ├── orchestrator.py       # Orchestrator — coordinates all agents
+│   ├── planner_agent.py      # Daily planning specialist
+│   ├── email_agent.py        # Email triage specialist
+│   ├── research_agent.py     # Learning & research specialist
+│   └── accountability_agent.py  # Behavioral patterns specialist
+├── planner.py                # MODIFIED — now delegates to agents/orchestrator.py
+└── email_processor.py        # MODIFIED — now delegates to agents/email_agent.py
 ```
 
-### Database Changes
+---
 
+## Database Changes
+
+### Table: `agent_logs`
 ```sql
-CREATE TABLE IF NOT EXISTS bot_config (
+CREATE TABLE IF NOT EXISTS agent_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    service TEXT UNIQUE NOT NULL,        -- 'telegram'
-    chat_id TEXT,                        -- user's Telegram chat ID
-    enabled BOOLEAN DEFAULT 1,
-    settings_json TEXT,                  -- JSON blob for preferences
+    agent_name TEXT NOT NULL,
+    trigger_type TEXT NOT NULL,         -- 'scheduled', 'manual', 'orchestrated'
+    input_summary TEXT,                 -- brief description of what context was sent
+    raw_prompt TEXT,                    -- the full prompt sent to Gemini (for debugging)
+    raw_response TEXT,                  -- the raw response from Gemini
+    parsed_output TEXT,                 -- the parsed JSON output
+    tokens_used INTEGER,               -- approximate token count
+    duration_ms INTEGER,               -- how long the call took
+    success BOOLEAN DEFAULT 1,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Table: `learning_resources`
+```sql
+CREATE TABLE IF NOT EXISTS learning_resources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id INTEGER REFERENCES goals(id) ON DELETE CASCADE,
+    type TEXT CHECK(type IN ('book', 'course', 'tutorial', 'article', 'video', 'other')),
+    title TEXT NOT NULL,
+    author TEXT,
+    url TEXT,
+    total_units INTEGER,               -- total chapters, modules, lessons, pages, etc.
+    completed_units INTEGER DEFAULT 0,
+    unit_label TEXT DEFAULT 'chapter',  -- 'chapter', 'module', 'lesson', 'page', etc.
+    status TEXT DEFAULT 'in_progress' CHECK(status IN ('not_started', 'in_progress', 'completed', 'dropped')),
+    notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-The `settings_json` stores user preferences:
-```json
+### Table: `accountability_insights`
+```sql
+CREATE TABLE IF NOT EXISTS accountability_insights (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    insight_type TEXT NOT NULL,         -- 'pattern', 'warning', 'nudge', 'celebration'
+    title TEXT NOT NULL,
+    description TEXT,
+    related_goal_id INTEGER REFERENCES goals(id) ON DELETE SET NULL,
+    severity TEXT CHECK(severity IN ('info', 'warning', 'critical')),
+    acknowledged BOOLEAN DEFAULT 0,     -- user has seen/dismissed this
+    valid_until DATE,                   -- insight expires after this date
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+## Backend: `agents/base.py`
+
+### Base Agent Class
+
+All agents inherit from this. It handles the Gemini API call, logging, error handling, and response parsing.
+
+```python
+import time
+import json
+import google.generativeai as genai
+from database import get_db
+
+class BaseAgent:
+    """Base class for all jenax agents."""
+    
+    def __init__(self, name, persona):
+        """
+        name: agent identifier (e.g., 'planner', 'email', 'research', 'accountability')
+        persona: opening line of the system prompt describing who this agent is
+        """
+        self.name = name
+        self.persona = persona
+        self.model = genai.GenerativeModel("gemini-2.0-flash")
+    
+    def build_context(self):
+        """
+        Override in subclass. 
+        Gathers relevant data from the database for this agent's domain.
+        Returns: dict of context data
+        """
+        raise NotImplementedError
+    
+    def build_prompt(self, context, extra_input=None):
+        """
+        Override in subclass.
+        Constructs the full prompt from persona + context + instructions.
+        Returns: string prompt
+        """
+        raise NotImplementedError
+    
+    def parse_response(self, raw_text):
+        """
+        Override in subclass.
+        Parses the raw LLM response into structured data.
+        Returns: parsed dict
+        """
+        # Default: try JSON parsing
+        cleaned = raw_text.strip()
+        if cleaned.startswith('```'):
+            cleaned = cleaned.split('\n', 1)[1]
+            if cleaned.endswith('```'):
+                cleaned = cleaned[:-3]
+        return json.loads(cleaned)
+    
+    def run(self, extra_input=None, trigger_type='manual'):
+        """
+        Execute the agent:
+        1. Build context from database
+        2. Build prompt
+        3. Call Gemini
+        4. Parse response
+        5. Log everything
+        Returns: parsed output dict
+        """
+        start_time = time.time()
+        context = self.build_context()
+        prompt = self.build_prompt(context, extra_input)
+        
+        try:
+            response = self.model.generate_content(prompt)
+            raw_text = response.text
+            parsed = self.parse_response(raw_text)
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Log to database
+            self._log(
+                trigger_type=trigger_type,
+                input_summary=self._summarize_context(context),
+                raw_prompt=prompt,
+                raw_response=raw_text,
+                parsed_output=json.dumps(parsed),
+                duration_ms=duration_ms,
+                success=True
+            )
+            
+            return parsed
+            
+        except Exception as e:
+            duration_ms = int((time.time() - start_time) * 1000)
+            self._log(
+                trigger_type=trigger_type,
+                input_summary=self._summarize_context(context),
+                raw_prompt=prompt,
+                raw_response=str(e),
+                parsed_output=None,
+                duration_ms=duration_ms,
+                success=False,
+                error_message=str(e)
+            )
+            raise
+    
+    def _log(self, **kwargs):
+        """Save agent run to agent_logs table."""
+        db = get_db()
+        db.execute(
+            """INSERT INTO agent_logs 
+               (agent_name, trigger_type, input_summary, raw_prompt, 
+                raw_response, parsed_output, duration_ms, success, error_message)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (self.name, kwargs['trigger_type'], kwargs['input_summary'],
+             kwargs['raw_prompt'], kwargs['raw_response'], kwargs['parsed_output'],
+             kwargs['duration_ms'], kwargs['success'], kwargs.get('error_message'))
+        )
+        db.commit()
+    
+    def _summarize_context(self, context):
+        """Brief description of context for logging."""
+        return f"{len(str(context))} chars of context"
+```
+
+---
+
+## Backend: `agents/planner_agent.py`
+
+This replaces the planning logic currently in `planner.py`.
+
+### Persona
+```
+You are the Planner — a focused productivity strategist. Your job is to 
+create realistic, prioritized daily task lists. You think in terms of 
+energy management, task sequencing, and momentum. You front-load important 
+work and protect the user from overcommitting.
+```
+
+### Context Builder
+Gathers:
+- All active goals (full hierarchy)
+- Last 7 days of task history (completed/incomplete)
+- Yesterday's daily reflection + tomorrow suggestions
+- Latest weekly review focus areas
+- Carried-forward tasks
+- Day-of-week completion patterns
+- Current streaks and trends
+- Any inputs from other agents (passed via extra_input from orchestrator)
+
+### Prompt Structure
+```
+{persona}
+
+## User's Active Goals
+{goal hierarchy}
+
+## Recent Task History (Last 7 Days)
+{daily breakdown}
+
+## Yesterday's Reflection
+{reflection + tomorrow_suggestions}
+
+## Weekly Focus Areas
+{from latest weekly review}
+
+## Carried Forward Tasks
+{incomplete tasks from yesterday}
+
+## Inputs from Other Agents
+{email action items from Email Agent, if any}
+{learning tasks from Research Agent, if any}
+{warnings from Accountability Agent, if any}
+
+## Day-of-Week Patterns
+{completion rates by day of week, today is {day}}
+
+## Rules
+1. Generate 5-8 tasks maximum.
+2. Each task must be concrete and completable in one sitting (30min - 2hrs).
+3. Sequence tasks by energy: hardest/most important in positions 1-3.
+4. Include 1 quick win (under 15 minutes).
+5. If other agents flagged items, integrate them — don't just append.
+6. If a task has been carried forward 3+ times, either break it smaller or recommend dropping it.
+7. Total estimated time should not exceed 6 hours of focused work.
+8. If it's a historically low-completion day, generate fewer tasks (4-5 instead of 7-8).
+
+Respond ONLY with valid JSON:
 {
-    "morning_plan_time": "07:00",
-    "evening_review_time": "21:00",
-    "send_morning_plan": true,
-    "send_evening_reminder": true,
-    "send_email_alerts": true,
-    "timezone": "Asia/Kolkata"
+  "tasks": [
+    {
+      "title": "...",
+      "description": "...",
+      "priority": "high|medium|low",
+      "goal_id": <id or null>,
+      "estimated_minutes": <number>,
+      "energy_level": "high|medium|low",
+      "sequence_reason": "Why this task is in this position"
+    }
+  ],
+  "daily_insight": "One sentence of strategic advice",
+  "workload_assessment": "light|moderate|heavy",
+  "flags": ["any warnings or notes for the orchestrator"]
 }
 ```
 
-### Backend: `telegram_bot.py`
+---
 
-#### Bot Initialization
+## Backend: `agents/email_agent.py`
 
-```python
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler, 
-    MessageHandler, filters, ContextTypes
-)
+This replaces the processing logic currently in `email_processor.py`.
 
-# Build the bot application
-app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+### Persona
+```
+You are the Email Analyst — an executive assistant who triages inboxes 
+with precision. You distinguish between truly urgent items and things 
+that just feel urgent. You protect the user's focus by being ruthlessly 
+selective about what deserves their attention.
 ```
 
-#### Command Handlers
+### Context Builder
+Gathers:
+- Recent emails (from gmail_client.fetch_recent_emails)
+- User's active goals (so the agent can prioritize emails related to goals)
+- Today's existing tasks (to avoid duplicating action items)
+- Previous email digests (last 3 days, to track email threads)
 
-**`/start`**
-- Saves the user's `chat_id` to `bot_config` table (service='telegram')
-- Replies: "Welcome to jenax! I'll send you your daily plans and reminders. Use /help to see what I can do."
-- If already registered, replies: "You're already connected! Use /help to see commands."
-
-**`/help`**
-- Replies with:
-  ```
-  📋 jenax Bot Commands:
-  
-  /plan — Generate and view today's plan
-  /tasks — See today's tasks with completion status
-  /done <number> — Mark a task as complete (e.g., /done 2)
-  /progress — See your current streak and weekly stats
-  /goals — List your active goals
-  /review — Trigger an end-of-day review
-  /settings — Configure notification times
-  /stop — Pause all notifications
-  /resume — Resume notifications
-  ```
-
-**`/plan`**
-- Calls the same logic as `POST /api/generate-plan`
-- Formats the result as a Telegram message:
-  ```
-  📅 Your Plan for Today (Mon, Mar 31)
-  
-  💡 "Focus on the Python course today — you're 3 days behind schedule."
-  
-  1. 🔴 Complete Python Chapter 7 exercises (~45min)
-  2. 🔴 Reply to Sarah about Q3 budget (~15min)
-  3. 🟡 Read 30 pages of Atomic Habits (~40min)
-  4. 🟡 Update resume skills section (~30min)
-  5. 🟢 Review and organize bookmarks (~15min)
-  
-  Tap a button to mark as done:
-  ```
-- Below the message: inline keyboard buttons `[✓ 1] [✓ 2] [✓ 3] [✓ 4] [✓ 5]`
-
-**`/tasks`**
-- Fetches today's tasks from the database
-- Shows them with completion status:
-  ```
-  📋 Today's Tasks (3/5 done)
-  
-  ✅ Complete Python Chapter 7 exercises
-  ✅ Reply to Sarah about Q3 budget
-  ✅ Read 30 pages of Atomic Habits
-  ⬜ Update resume skills section
-  ⬜ Review and organize bookmarks
-  
-  Use /done <number> to complete a task
-  ```
-- Inline buttons: only show buttons for incomplete tasks
-
-**`/done <number>`**
-- Marks the Nth task (in today's task list order) as complete
-- Replies: "✅ Marked 'Update resume skills section' as done! (4/5 complete today)"
-- If all tasks are done: "🎉 All tasks complete! Amazing work today!"
-
-**`/progress`**
-- Calls the same logic as `GET /api/progress`
-- Formats as:
-  ```
-  📊 Your Progress
-  
-  🔥 Current streak: 5 days
-  📈 This week: 73% completion
-  📉 Last week: 65% completion
-  ⭐ Best day: Tuesdays
-  🏆 All-time: 142 tasks completed
-  ```
-
-**`/goals`**
-- Lists active goals grouped by level:
-  ```
-  🎯 Your Active Goals
-  
-  📅 Yearly:
-    • Get a software developer job
-    • Read 12 books
-  
-  📆 Monthly:
-    • Complete Python course
-    • Finish Atomic Habits
-  
-  📋 Weekly:
-    • Finish chapters 5-8
-    • Read 50 pages
-  ```
-
-**`/review`**
-- Triggers the end-of-day review (same as `POST /api/review/daily` but without mood/notes since those are harder to collect via Telegram)
-- Sends mood selection first as inline buttons: `[😫] [😐] [🙂] [😊]`
-- After mood is selected, generates and sends the review:
-  ```
-  🌙 End of Day Review
-  
-  You completed 4 out of 5 tasks today (80%).
-  
-  📝 "Solid day — you knocked out the Python exercises 
-  and stayed on top of email. The resume task slipped 
-  again — consider blocking 30 minutes for it first 
-  thing tomorrow."
-  
-  💡 Tomorrow's suggestions:
-  • Start with the resume update before anything else
-  • You tend to be less productive on Wednesdays — keep it light
-  ```
-
-**`/settings`**
-- Shows current settings with inline buttons to change them:
-  ```
-  ⚙️ Notification Settings
-  
-  🌅 Morning plan: 07:00 AM
-  🌙 Evening review: 09:00 PM
-  📧 Email alerts: On
-  🕐 Timezone: Asia/Kolkata
-  
-  Tap to change:
-  ```
-- Inline buttons: `[Change morning time] [Change evening time] [Toggle email alerts]`
-- Time changes: bot asks "Send me the new time (e.g., 06:30 or 08:00)" and waits for a text reply
-- Timezone: bot asks "Send me your timezone (e.g., America/New_York, Europe/London, Asia/Kolkata)" — validate against pytz/zoneinfo
-
-**`/stop`**
-- Sets `enabled = 0` in bot_config
-- Replies: "⏸ Notifications paused. Use /resume to turn them back on."
-
-**`/resume`**
-- Sets `enabled = 1` in bot_config
-- Replies: "▶️ Notifications resumed!"
-
-#### Callback Query Handler (Button Presses)
-
-Handle all inline button presses:
-- Task completion buttons (`done_1`, `done_2`, etc.): mark task complete, edit the original message to update the status
-- Mood selection (`mood_great`, `mood_good`, etc.): save mood, proceed with review generation
-- Settings buttons: handle setting changes
-
-#### Message Sending Functions (called by scheduler)
-
-```python
-async def send_morning_plan(chat_id):
-    """
-    Generate today's plan and send it to the user.
-    Same format as /plan command.
-    Called by the scheduler at the user's configured morning time.
-    """
-
-async def send_evening_reminder(chat_id):
-    """
-    Send a reminder to review the day.
-    Message: "🌙 Time to wrap up! You completed X/Y tasks today. 
-    Use /review to get your daily reflection, or just check off 
-    any last tasks with /tasks"
-    Called by the scheduler at the user's configured evening time.
-    """
-
-async def send_email_alert(chat_id, action_items):
-    """
-    Send a notification when email scanning finds high-priority action items.
-    Only sends for HIGH priority items.
-    Message: "📧 Urgent email action item:
-    [title]
-    From: [sender] — Re: [subject]
-    
-    [Accept as task] [Dismiss]"
-    """
+### Prompt Structure
 ```
+{persona}
 
-#### Running the Bot
+## Recent Emails (Last 24 Hours)
+{email list with sender, subject, body}
 
-The bot needs to run alongside Flask. Two approaches:
+## User's Current Priorities
+{active goals, today's tasks}
 
-**Recommended: Run bot in a background thread within the Flask app.**
+## Previous Digests (Context)
+{summaries from last 3 days — helps track ongoing threads}
 
-In `app.py`:
-```python
-import threading
-from telegram_bot import start_bot
+## Instructions
+1. Categorize each email: needs_reply, action_required, informational, can_ignore
+2. Extract action items ONLY for things that genuinely require the user's effort
+3. For "needs_reply" emails, draft a 1-2 sentence reply suggestion
+4. Prioritize emails that relate to the user's active goals
+5. Flag any email threads that have been going back and forth without resolution
+6. If an email is from an unknown sender about something important, note it
 
-# Start bot in background thread when app starts
-if TELEGRAM_BOT_TOKEN:
-    bot_thread = threading.Thread(target=start_bot, daemon=True)
-    bot_thread.start()
-```
-
-In `telegram_bot.py`:
-```python
-def start_bot():
-    """
-    Initialize and run the Telegram bot using polling.
-    This runs in its own thread and doesn't block Flask.
-    Uses asyncio.new_event_loop() since it's in a separate thread.
-    """
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-    # Register all handlers
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("plan", plan_command))
-    # ... etc
-    app.add_handler(CallbackQueryHandler(button_callback))
-    
-    app.run_polling()
+Respond ONLY with valid JSON:
+{
+  "summary": "2-4 sentence inbox overview",
+  "action_items": [
+    {
+      "title": "...",
+      "description": "...",
+      "priority": "high|medium|low",
+      "source_subject": "...",
+      "source_sender": "...",
+      "suggested_reply": "Draft reply if this is a needs_reply item, or null",
+      "related_goal_id": <goal id if related to a goal, or null>,
+      "urgency_reason": "Why this priority level"
+    }
+  ],
+  "categories": {
+    "needs_reply": <number>,
+    "action_required": <number>,
+    "informational": <number>,
+    "can_ignore": <number>
+  },
+  "thread_alerts": [
+    {
+      "subject": "...",
+      "message": "This thread has had 5 back-and-forth emails — consider scheduling a call"
+    }
+  ],
+  "flags": ["any notes for the orchestrator"]
+}
 ```
 
 ---
 
-## Part 2: Background Scheduler
+## Backend: `agents/research_agent.py`
 
-### What It Does
+This is entirely new — no existing code to refactor.
 
-Runs tasks automatically on a schedule:
-- Generate morning plan at the user's configured time
-- Send evening review reminder
-- Auto-scan emails (if Gmail connected) every few hours
-- Clean up old email digests (daily)
-- Carry forward yesterday's incomplete tasks (each morning)
-
-### Tech Stack Addition
-
-| What | Package | Why |
-|------|---------|-----|
-| Scheduler | `APScheduler` | Lightweight, works within Flask process |
-
-Add to `requirements.txt`:
+### Persona
 ```
-apscheduler
+You are the Research Coach — a learning strategist who helps people 
+make consistent progress on educational goals. You break down learning 
+into daily bite-sized tasks, track progress through courses and books, 
+and suggest resources. You believe in spaced repetition, active recall, 
+and the power of showing up every day even for just 20 minutes.
 ```
 
-### Backend: `scheduler.py`
+### Context Builder
+Gathers:
+- Active goals that involve learning (detect by keywords in title/description: "learn", "course", "book", "read", "study", "tutorial", "certification", "skill")
+- Learning resources linked to those goals (from `learning_resources` table)
+- Recent learning-related task completions
+- Progress data on each resource (completed_units / total_units)
 
-```python
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-import pytz
+### Prompt Structure
+```
+{persona}
 
-scheduler = BackgroundScheduler()
+## Learning Goals
+{learning-related goals with their sub-goals}
 
-def init_scheduler(app):
-    """
-    Initialize and start all scheduled jobs.
-    Call this once from app.py after all other setup.
-    """
-    
-    # --- Morning routine (runs daily) ---
-    # Time is loaded from bot_config settings, default 07:00
-    
-    scheduler.add_job(
-        morning_routine,
-        CronTrigger(hour=7, minute=0),  # default, overridden by user settings
-        id='morning_routine',
-        replace_existing=True,
-        misfire_grace_time=3600  # if missed, still run within 1 hour
-    )
-    
-    # --- Evening reminder (runs daily) ---
-    scheduler.add_job(
-        evening_routine,
-        CronTrigger(hour=21, minute=0),
-        id='evening_routine',
-        replace_existing=True,
-        misfire_grace_time=3600
-    )
-    
-    # --- Email scan (every 4 hours during daytime) ---
-    scheduler.add_job(
-        scheduled_email_scan,
-        CronTrigger(hour='8,12,16,20', minute=0),
-        id='email_scan',
-        replace_existing=True,
-        misfire_grace_time=1800
-    )
-    
-    # --- Data cleanup (daily at 3 AM) ---
-    scheduler.add_job(
-        data_cleanup,
-        CronTrigger(hour=3, minute=0),
-        id='data_cleanup',
-        replace_existing=True
-    )
-    
-    scheduler.start()
+## Active Learning Resources
+{for each resource:
+  "Title: [title] by [author]
+   Type: [book/course/etc]
+   Progress: [completed_units]/[total_units] [unit_label]s
+   Status: [in_progress/not_started]
+   Notes: [any user notes]"
+}
 
+## Recent Learning Activity (Last 7 Days)
+{learning-related tasks completed recently}
 
-def morning_routine():
-    """
-    Runs each morning:
-    1. Carry forward incomplete tasks from yesterday
-    2. Generate today's plan using AI
-    3. Scan emails for action items (if Gmail connected)
-    4. Send morning plan via Telegram (if connected and enabled)
-    """
+## Today's Date: {date}
+## Days Until Goal Deadlines: {for each learning goal with a deadline}
 
-def evening_routine():
-    """
-    Runs each evening:
-    1. Calculate today's completion stats
-    2. Send evening reminder via Telegram (if connected and enabled)
-    """
+## Instructions
+1. For each active learning resource, suggest a specific task for today
+2. Tasks should be small and completable in 20-45 minutes
+3. Use spaced repetition logic: if the user studied something 2 days ago, suggest reviewing it
+4. If a resource is falling behind schedule (based on deadline), flag it and suggest catching up
+5. If no learning resources are tracked yet but learning goals exist, suggest resources the user could start with
+6. If the user has too many resources in progress, suggest focusing on 1-2 at a time
 
-def scheduled_email_scan():
-    """
-    Runs periodically:
-    1. Check if Gmail is connected
-    2. Fetch recent emails
-    3. Process through Gemini
-    4. If any HIGH priority action items found, send Telegram alert
-    5. Store digest (overwrite today's existing digest)
-    """
-
-def data_cleanup():
-    """
-    Runs nightly:
-    1. Delete email_digests older than 7 days
-    2. Delete orphaned email_action_items
-    """
-
-def update_schedule_times(morning_time, evening_time, timezone):
-    """
-    Called when user changes settings via Telegram /settings or web UI.
-    Reschedules the morning and evening jobs with new times.
-    
-    morning_time: string like "07:00"
-    evening_time: string like "21:00"  
-    timezone: string like "Asia/Kolkata"
-    """
-    hour, minute = map(int, morning_time.split(':'))
-    tz = pytz.timezone(timezone)
-    
-    scheduler.reschedule_job(
-        'morning_routine',
-        trigger=CronTrigger(hour=hour, minute=minute, timezone=tz)
-    )
-    # same for evening
+Respond ONLY with valid JSON:
+{
+  "learning_tasks": [
+    {
+      "title": "...",
+      "description": "...",
+      "priority": "high|medium|low",
+      "goal_id": <related goal id>,
+      "resource_id": <related resource id or null>,
+      "estimated_minutes": <number>,
+      "task_type": "new_content|review|practice|project"
+    }
+  ],
+  "resource_suggestions": [
+    {
+      "title": "Suggested resource title",
+      "type": "book|course|tutorial|article|video",
+      "reason": "Why this would help with their goal",
+      "goal_id": <related goal id>
+    }
+  ],
+  "progress_alerts": [
+    {
+      "resource_id": <id>,
+      "message": "You're 3 chapters behind schedule for [resource]. Consider doing 2 chapters today."
+    }
+  ],
+  "flags": ["any notes for the orchestrator"]
+}
 ```
 
-### Integration with `app.py`
+### Learning Resource Management
 
-```python
-from scheduler import init_scheduler
+The Research Agent also needs CRUD support for learning resources.
 
-# After all route definitions and database init:
-if __name__ == '__main__':
-    init_scheduler(app)
-    app.run(debug=True)
+**New API routes:**
+
+- `GET /api/resources` — list all learning resources, optionally filtered by goal_id
+- `POST /api/resources` — create a resource: `{goal_id, type, title, author, url, total_units, unit_label}`
+- `PUT /api/resources/<id>` — update a resource
+- `PATCH /api/resources/<id>/progress` — update progress: `{completed_units}`
+- `DELETE /api/resources/<id>` — delete a resource
+
+---
+
+## Backend: `agents/accountability_agent.py`
+
+This is entirely new.
+
+### Persona
+```
+You are the Accountability Partner — a supportive but honest coach who 
+tracks behavioral patterns over time. You notice when someone is 
+avoiding certain goals, when their productivity is declining, and when 
+they deserve celebration. You don't lecture — you observe, ask good 
+questions, and nudge gently. But you don't let important things slide.
 ```
 
-**Important:** When Flask runs with `debug=True`, it spawns a reloader process which causes the scheduler to start twice. Handle this:
-```python
-import os
-if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-    init_scheduler(app)
+### Context Builder
+Gathers:
+- Full goal list with statuses and creation dates
+- 30-day task completion history (daily: completed/total)
+- All daily reflections from the last 30 days
+- All weekly reviews from the last month
+- Streak data (current, longest, recent breaks)
+- Goal activity map: for each goal, when was the last task completed?
+- Previous accountability insights (to avoid repeating the same observation)
+- Day-of-week and time-of-day patterns
+
+### Prompt Structure
+```
+{persona}
+
+## Goal Health Report
+{for each goal:
+  "Goal: [title] (level: [level], created: [date], deadline: [deadline])
+   Status: [active/paused/etc]
+   Last task completed: [date] ([X days ago])
+   Tasks completed (30 days): [count]
+   Tasks missed (30 days): [count]
+   Sub-goals: [count active / count total]"
+}
+
+## 30-Day Completion Trend
+{daily completion rates for last 30 days, formatted as a simple list}
+
+## Behavioral Patterns
+Day-of-week averages: {Mon: 75%, Tue: 80%, ..., Sun: 40%}
+Best streak: {longest_streak} days
+Current streak: {current_streak} days
+Recent streak breaks: {dates when streaks broke}
+
+## Previous Insights (avoid repeating these)
+{last 5 accountability insights with dates}
+
+## Recent Mood Trend
+{moods from daily reflections, last 14 days}
+
+## Instructions
+1. Identify 2-4 insights about the user's productivity patterns
+2. Each insight should be one of:
+   - "pattern": a recurring behavior (good or bad)
+   - "warning": a goal or habit that's at risk
+   - "nudge": a gentle push toward something being avoided
+   - "celebration": recognition of progress or consistency
+3. Be specific — reference actual goals, dates, and numbers
+4. Don't repeat insights from the "Previous Insights" section
+5. If mood has been declining, note it sensitively
+6. Set a valid_until date: patterns last 14 days, warnings last 7 days, celebrations last 3 days
+7. Assign severity: info (observations), warning (needs attention), critical (goal at serious risk)
+
+Respond ONLY with valid JSON:
+{
+  "insights": [
+    {
+      "type": "pattern|warning|nudge|celebration",
+      "title": "Short title",
+      "description": "2-3 sentence observation with specific data references",
+      "related_goal_id": <goal id or null>,
+      "severity": "info|warning|critical",
+      "valid_days": <number of days this insight stays relevant>,
+      "suggested_action": "What the user could do about it, or null for celebrations"
+    }
+  ],
+  "overall_health": "thriving|steady|struggling|critical",
+  "flags": ["any urgent notes for the orchestrator"]
+}
 ```
 
 ---
 
-## Part 3: Browser Notifications
+## Backend: `agents/orchestrator.py`
 
-### What It Does
+The orchestrator coordinates all agents and merges their outputs.
 
-Sends gentle browser notifications during the day:
-- "You have 3 tasks remaining today" (mid-day reminder)
-- "Time for your evening review" (evening)
-- Notification permission is requested on first visit
+### How It Works
 
-### Implementation Approach
-
-Use the **Web Notifications API** (built into browsers, no extra packages).
-
-### Frontend Changes
-
-**Notification Permission Request:**
-
-On first page load, after a 5-second delay (don't immediately ask), show a subtle banner at the top of the page:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ 🔔 Enable notifications to get task reminders           │
-│    during the day.              [Enable] [No thanks]    │
-└─────────────────────────────────────────────────────────┘
-```
-
-- "Enable" calls `Notification.requestPermission()`
-- "No thanks" dismisses the banner and sets `localStorage.jenax_notifications_dismissed = true`
-- If already granted, don't show the banner
-- If denied at browser level, don't show the banner
-
-**Notification Scheduling (client-side):**
-
-Since the app is a single-page app open in a browser tab, use `setInterval` or `setTimeout` to check task status periodically:
-
-```javascript
-// Check every 30 minutes while the page is open
-setInterval(async () => {
-    if (Notification.permission !== 'granted') return;
+```python
+class Orchestrator:
+    """
+    Coordinates all agents and produces a unified output.
+    This is NOT an LLM agent — it's procedural Python code.
+    """
     
-    const now = new Date();
-    const hour = now.getHours();
+    def __init__(self):
+        self.planner = PlannerAgent()
+        self.email_agent = EmailAgent()
+        self.research_agent = ResearchAgent()
+        self.accountability_agent = AccountabilityAgent()
     
-    // Mid-day reminder (between 12:00 and 13:00, once)
-    if (hour === 12 && !sessionStorage.midday_notified) {
-        const response = await fetch('/api/tasks');
-        const tasks = await response.json();
-        const remaining = tasks.filter(t => !t.completed).length;
-        if (remaining > 0) {
-            new Notification('jenax', {
-                body: `You have ${remaining} task${remaining > 1 ? 's' : ''} remaining today.`,
-                icon: '/static/icon.png',  // optional, create a simple icon
-                tag: 'midday-reminder'     // prevents duplicate notifications
-            });
-            sessionStorage.midday_notified = 'true';
+    def generate_daily_plan(self):
+        """
+        Full daily plan generation pipeline.
+        Runs agents in sequence, passes outputs between them.
+        Returns: merged plan with tasks, insights, and alerts.
+        """
+        
+        results = {}
+        
+        # Step 1: Accountability check (runs first to provide warnings)
+        try:
+            results['accountability'] = self.accountability_agent.run(
+                trigger_type='orchestrated'
+            )
+            self._save_insights(results['accountability'])
+        except Exception as e:
+            results['accountability'] = None
+            # Log but don't fail — other agents can still run
+        
+        # Step 2: Email triage (if Gmail connected)
+        if is_gmail_connected():
+            try:
+                emails = fetch_recent_emails(hours=24)
+                results['email'] = self.email_agent.run(
+                    extra_input={'emails': emails},
+                    trigger_type='orchestrated'
+                )
+            except Exception as e:
+                results['email'] = None
+        
+        # Step 3: Research tasks (if learning goals exist)
+        if has_learning_goals():
+            try:
+                results['research'] = self.research_agent.run(
+                    trigger_type='orchestrated'
+                )
+            except Exception as e:
+                results['research'] = None
+        
+        # Step 4: Planner (receives outputs from all other agents)
+        agent_inputs = {
+            'email_actions': self._extract_email_actions(results.get('email')),
+            'learning_tasks': self._extract_learning_tasks(results.get('research')),
+            'accountability_warnings': self._extract_warnings(results.get('accountability')),
         }
-    }
+        
+        try:
+            results['planner'] = self.planner.run(
+                extra_input=agent_inputs,
+                trigger_type='orchestrated'
+            )
+        except Exception as e:
+            # If planner fails, this is critical — re-raise
+            raise
+        
+        # Step 5: Merge and deduplicate
+        final_output = self._merge_outputs(results)
+        
+        return final_output
     
-    // Evening reminder (between 20:00 and 21:00, once)
-    if (hour === 20 && !sessionStorage.evening_notified) {
-        new Notification('jenax', {
-            body: 'Time to review your day! How did it go?',
-            icon: '/static/icon.png',
-            tag: 'evening-reminder'
-        });
-        sessionStorage.evening_notified = 'true';
-    }
-}, 1800000); // 30 minutes
+    def _merge_outputs(self, results):
+        """
+        Combine all agent outputs into a single response.
+        
+        Merging rules:
+        1. Tasks come primarily from the Planner
+        2. Email action items are shown separately (not mixed into the task list)
+        3. Research suggestions are shown as a separate section
+        4. Accountability insights are shown as alerts/banners
+        5. Deduplicate: if planner already included an email task or learning task, 
+           don't show it again in the separate sections
+        """
+        
+        planner_output = results.get('planner', {})
+        email_output = results.get('email')
+        research_output = results.get('research')
+        accountability_output = results.get('accountability')
+        
+        return {
+            'tasks': planner_output.get('tasks', []),
+            'daily_insight': planner_output.get('daily_insight', ''),
+            'workload_assessment': planner_output.get('workload_assessment', 'moderate'),
+            
+            'email_summary': email_output.get('summary') if email_output else None,
+            'email_action_items': email_output.get('action_items', []) if email_output else [],
+            'thread_alerts': email_output.get('thread_alerts', []) if email_output else [],
+            
+            'learning_tasks': research_output.get('learning_tasks', []) if research_output else [],
+            'resource_suggestions': research_output.get('resource_suggestions', []) if research_output else [],
+            'progress_alerts': research_output.get('progress_alerts', []) if research_output else [],
+            
+            'accountability_insights': accountability_output.get('insights', []) if accountability_output else [],
+            'overall_health': accountability_output.get('overall_health', 'steady') if accountability_output else 'steady',
+            
+            'agents_used': [k for k, v in results.items() if v is not None]
+        }
+    
+    def _save_insights(self, accountability_output):
+        """Save accountability insights to the database."""
+        if not accountability_output:
+            return
+        for insight in accountability_output.get('insights', []):
+            # Calculate valid_until date
+            valid_days = insight.get('valid_days', 7)
+            # Insert into accountability_insights table
+            # Skip if a similar insight (same title) already exists and is still valid
+    
+    def _extract_email_actions(self, email_output):
+        """Extract action items for the planner's context."""
+        if not email_output:
+            return []
+        return [
+            f"[{item['priority']}] {item['title']} (from: {item['source_sender']})"
+            for item in email_output.get('action_items', [])
+        ]
+    
+    def _extract_learning_tasks(self, research_output):
+        """Extract learning tasks for the planner's context."""
+        if not research_output:
+            return []
+        return [
+            f"{task['title']} (~{task['estimated_minutes']}min, {task['task_type']})"
+            for task in research_output.get('learning_tasks', [])
+        ]
+    
+    def _extract_warnings(self, accountability_output):
+        """Extract warnings for the planner's context."""
+        if not accountability_output:
+            return []
+        return [
+            f"[{insight['severity']}] {insight['title']}: {insight['description']}"
+            for insight in accountability_output.get('insights', [])
+            if insight['severity'] in ('warning', 'critical')
+        ]
 ```
 
-**Note:** Browser notifications only work when the tab is open. This is a known limitation — the Telegram bot is the reliable notification channel. Browser notifications are a nice-to-have supplement.
+### Integration with Existing Code
+
+**Modify `planner.py`:**
+The existing `generate_plan()` function should now delegate to the orchestrator:
+
+```python
+from agents.orchestrator import Orchestrator
+
+def generate_plan():
+    """
+    Entry point for plan generation.
+    Now uses the multi-agent orchestrator instead of a single prompt.
+    Falls back to single-prompt mode if agents fail.
+    """
+    orchestrator = Orchestrator()
+    try:
+        return orchestrator.generate_daily_plan()
+    except Exception as e:
+        # Fallback: use the old single-prompt approach
+        return generate_plan_legacy()
+```
+
+Keep the old single-prompt logic as `generate_plan_legacy()` for fallback.
+
+**Modify `email_processor.py`:**
+Similarly delegate to the email agent, with the old logic as fallback.
 
 ---
 
-## API Route Additions
+## API Route Changes
 
-### Telegram Config Routes
+### Modified Routes
 
-**`GET /api/config/telegram`**
-- Returns: `{ "connected": bool, "chat_id": str or null, "settings": {...} }`
+**`POST /api/generate-plan`**
+- Now returns the enriched orchestrator output:
+```json
+{
+  "tasks": [...],
+  "daily_insight": "...",
+  "workload_assessment": "moderate",
+  "email_summary": "...",
+  "email_action_items": [...],
+  "learning_tasks": [...],
+  "resource_suggestions": [...],
+  "accountability_insights": [...],
+  "overall_health": "steady",
+  "agents_used": ["planner", "email", "research", "accountability"]
+}
+```
 
-**`PUT /api/config/telegram/settings`**
-- Body: `{ "morning_plan_time": "07:00", "evening_review_time": "21:00", ... }`
-- Updates settings_json in bot_config
-- Calls `scheduler.update_schedule_times()` to reschedule jobs
-- Returns: updated settings
+### New Routes
 
-### Scheduler Status Route
+**`GET /api/resources`** — list learning resources
+**`POST /api/resources`** — create a learning resource
+**`PUT /api/resources/<id>`** — update a learning resource
+**`PATCH /api/resources/<id>/progress`** — update progress `{completed_units}`
+**`DELETE /api/resources/<id>`** — delete a learning resource
 
-**`GET /api/scheduler/status`**
-- Returns info about scheduled jobs:
-  ```json
-  {
-    "running": true,
-    "jobs": [
-      {"id": "morning_routine", "next_run": "2025-04-01T07:00:00", "enabled": true},
-      {"id": "evening_routine", "next_run": "2025-04-01T21:00:00", "enabled": true},
-      {"id": "email_scan", "next_run": "2025-04-01T12:00:00", "enabled": true}
-    ]
-  }
-  ```
+**`GET /api/insights`** — get active accountability insights (not expired, not acknowledged)
+**`PATCH /api/insights/<id>/acknowledge`** — mark an insight as acknowledged
 
-**`POST /api/scheduler/trigger/<job_id>`**
-- Manually triggers a scheduled job (useful for testing)
-- Only allows: morning_routine, evening_routine, email_scan
-- Returns: `{ "triggered": "morning_routine" }`
+**`GET /api/agents/logs?agent=planner&limit=10`** — get recent agent logs (for debugging)
+**`GET /api/agents/status`** — returns which agents are available and their last run time:
+```json
+{
+  "agents": [
+    {"name": "planner", "available": true, "last_run": "2025-04-01T07:00:00", "last_status": "success"},
+    {"name": "email", "available": true, "last_run": "2025-04-01T08:00:00", "last_status": "success"},
+    {"name": "research", "available": true, "last_run": "2025-04-01T07:00:00", "last_status": "success"},
+    {"name": "accountability", "available": true, "last_run": "2025-03-31T07:00:00", "last_status": "success"}
+  ]
+}
+```
 
 ---
 
 ## Frontend Changes
 
-### Sidebar: Connections Section Update
+### Dashboard Restructure
 
-Expand the existing "Connections" section in the sidebar:
+The main dashboard content area now has richer sections reflecting multi-agent output. The layout order from top to bottom:
+
+**1. Accountability Alerts (if any critical/warning insights exist)**
+```
+┌─────────────────────────────────────────────────┐
+│ ⚠️ Your "Read 12 books" goal has had zero       │
+│ activity for 12 days. Consider picking up your   │
+│ current book today, even for just 20 minutes.    │
+│                               [Got it] [Snooze]  │
+└─────────────────────────────────────────────────┘
+```
+- Critical insights: red left border
+- Warning insights: amber left border
+- Info insights: blue left border (shown in a collapsible section, not as banners)
+- Celebrations: green left border with confetti-style accent
+- "Got it" marks as acknowledged. "Snooze" hides for 24 hours (set acknowledged but with a reset timer — or simply re-show next day if still valid).
+
+**2. Daily Insight + Workload Badge**
+```
+┌─────────────────────────────────────────────────┐
+│ 💡 "Focus on Python today — you've been          │
+│ avoiding it since Tuesday."                      │
+│                                                  │
+│ Workload: 🟡 Moderate (~4.5 hrs focused work)    │
+│ Health: 🟢 Steady                                │
+│                                    [Generate Plan]│
+└─────────────────────────────────────────────────┘
+```
+- Workload badge: 🟢 Light / 🟡 Moderate / 🔴 Heavy
+- Health badge from accountability agent: 🟢 Thriving / 🟡 Steady / 🟠 Struggling / 🔴 Critical
+
+**3. Today's Tasks (same as before but with energy labels)**
+- Each task now optionally shows an energy tag: `⚡ High energy` / `☕ Medium` / `🌿 Low energy`
+- Tasks are still checkable, same interaction as before
+
+**4. Learning Corner (only if Research Agent returned data)**
+```
+┌─────────────────────────────────────────────────┐
+│ 📚 Learning Corner                               │
+│                                                  │
+│ Python Crash Course ████████░░ 8/12 chapters     │
+│   Today: Complete Chapter 9 exercises (~30min)   │
+│   ⚠️ 2 chapters behind schedule                  │
+│                                                  │
+│ Atomic Habits ██████░░░░ 120/280 pages           │
+│   Today: Read pages 121-150 (~30min)             │
+│                                                  │
+│ 💡 Suggested: "Automate the Boring Stuff"        │
+│    Great complement to your Python course goal   │
+│                            [Add to Resources]    │
+│                                                  │
+│              [Manage Resources]                  │
+└─────────────────────────────────────────────────┘
+```
+- Progress bars for each active resource
+- Today's learning task inline
+- Resource suggestions with one-click add
+- "Manage Resources" opens a modal for CRUD on learning_resources
+
+**5. Email Digest (same as Phase 3 but with reply suggestions)**
+- Same layout as before
+- Action items now show "Suggested reply" expandable section if the email agent provided one
+- Thread alerts shown as a small callout below the digest
+
+**6. Progress & Stats (same as before)**
+
+### Sidebar Addition: Agent Status
+
+At the bottom of the sidebar, below Connections and Automation:
 
 ```
-── Connections ──────────────
-📧 Gmail: Connected (user@gmail.com)
-   [Disconnect]
+── Agents ──────────────────
+🧠 Planner        ✓ 7:00 AM
+📧 Email          ✓ 8:00 AM
+📚 Research       ✓ 7:00 AM
+👁 Accountability ✓ 7:00 AM
 
-🤖 Telegram: Connected
-   [Configure] [Disconnect]
-   
-   — or if not connected —
-
-🤖 Telegram: Not connected
-   Setup instructions ↗
-   
-── Automation ──────────────
-⏰ Morning plan: 07:00 AM ✓
-🌙 Evening review: 09:00 PM ✓
-📧 Email scan: Every 4 hours ✓
-[Edit Schedule]
+[View Logs]
 ```
 
-- "Configure" opens a small settings panel (inline in the sidebar or a modal):
-  - Morning plan time (time input)
-  - Evening review time (time input)
-  - Timezone (dropdown or text input)
-  - Toggle switches for: morning plan, evening reminder, email alerts
-  - Save button
-- "Setup instructions" links to the README section or shows a modal with BotFather setup steps
-- Since Telegram connection happens FROM Telegram (user sends /start to the bot), the web UI just shows whether a chat_id is registered
+- Each agent shows its last run time and status (✓ success, ✗ failed, ⏳ running)
+- "View Logs" opens a modal showing recent agent_logs entries (filterable by agent)
+- This is mostly a debugging/transparency feature — helps the user understand what's happening under the hood
 
-### Settings Modal for Automation
+### Learning Resources Modal
 
-When user clicks "Edit Schedule":
+Accessed via "Manage Resources" button in Learning Corner:
 
 ```
-┌─────────────────────────────────────────────┐
-│ ⏰ Automation Settings                       │
-│                                              │
-│ Morning Plan Generation                      │
-│ [Toggle ON] at [07:00] ▼                    │
-│ Automatically generate your daily plan       │
-│                                              │
-│ Evening Review Reminder                      │
-│ [Toggle ON] at [21:00] ▼                    │
-│ Reminder to review your day                  │
-│                                              │
-│ Email Scanning                               │
-│ [Toggle ON] every [4 hours] ▼               │
-│ Scan Gmail for action items                  │
-│ (Only when Gmail is connected)               │
-│                                              │
-│ Timezone                                     │
-│ [Asia/Kolkata          ] ▼                  │
-│                                              │
-│                    [Save] [Cancel]            │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│ 📚 Learning Resources                    [+ Add]│
+│                                                  │
+│ ┌─────────────────────────────────────────────┐  │
+│ │ Python Crash Course          📖 Book        │  │
+│ │ by Eric Matthes                             │  │
+│ │ Goal: Complete Python course                │  │
+│ │ Progress: 8/12 chapters                     │  │
+│ │ [Update Progress] [Edit] [Delete]           │  │
+│ ├─────────────────────────────────────────────┤  │
+│ │ CS50 Web Programming         🎓 Course      │  │
+│ │ by Harvard (edX)                            │  │
+│ │ Goal: Learn web development                 │  │
+│ │ Progress: 3/11 modules                      │  │
+│ │ [Update Progress] [Edit] [Delete]           │  │
+│ └─────────────────────────────────────────────┘  │
+│                                                  │
+│ [+ Add] opens a form:                            │
+│   Title: [________________]                      │
+│   Author: [________________]                     │
+│   Type: [book ▼]                                 │
+│   URL: [________________] (optional)             │
+│   Total units: [___]                             │
+│   Unit label: [chapter ▼] (chapter/module/       │
+│               lesson/page/section/video)         │
+│   Linked goal: [dropdown of active goals]        │
+│                          [Save] [Cancel]          │
+└─────────────────────────────────────────────────┘
 ```
 
-- Time inputs: use HTML `<input type="time">`
-- Email scan frequency: dropdown with options `[Every 2 hours, Every 4 hours, Every 8 hours, Twice a day, Once a day]`
-- Timezone: text input with datalist of common timezones, or just a text field that validates against pytz
-- Save calls `PUT /api/config/telegram/settings` and updates the scheduler
+- "Update Progress" opens a small inline form: current units completed (number input) + Save
+- Type icons: 📖 Book, 🎓 Course, 📝 Tutorial, 📄 Article, 🎥 Video, 📦 Other
 
-### Notification Permission Banner
+---
 
-A slim banner at the very top of the page (above everything else):
+## Telegram Bot Updates
+
+### New Commands
+
+**`/resources`**
+- Lists active learning resources with progress:
+  ```
+  📚 Your Learning Resources
+  
+  1. Python Crash Course (Book)
+     ████████░░ 8/12 chapters
+  
+  2. CS50 Web Programming (Course)
+     ███░░░░░░░ 3/11 modules
+  
+  Use /progress_update <number> <units> to update
+  (e.g., /progress_update 1 9)
+  ```
+
+**`/progress_update <resource_number> <completed_units>`**
+- Updates the completed_units for a learning resource
+- Replies: "📖 Updated 'Python Crash Course': 9/12 chapters (75%)"
+
+**`/insights`**
+- Shows active accountability insights:
+  ```
+  👁 Accountability Insights
+  
+  ⚠️ "Read 12 books" goal neglected
+  No activity in 12 days. Even 20 minutes today helps.
+  
+  🎉 5-day streak!
+  You've been consistent all week. Keep it going.
+  
+  📊 Overall health: Steady
+  ```
+
+### Modified Morning Plan Message
+
+The morning Telegram message now includes sections from all agents:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ 🔔 Get task reminders in your browser  [Enable] [Dismiss]  │
-└─────────────────────────────────────────────────────────────┘
+📅 Your Plan for Monday, Mar 31
+
+💡 "Focus on Python today — you've been avoiding it since Tuesday."
+📊 Workload: Moderate (~4.5 hrs) | Health: Steady
+
+📋 Tasks:
+1. 🔴 ⚡ Complete Python Chapter 9 exercises (~45min)
+2. 🔴 ⚡ Reply to Sarah about Q3 budget (~15min)
+3. 🟡 ☕ Read 30 pages of Atomic Habits (~40min)
+4. 🟡 ☕ Update resume skills section (~30min)
+5. 🟢 🌿 Review and organize bookmarks (~15min)
+
+📚 Learning:
+• Python course: 8/12 chapters — ⚠️ 2 behind schedule
+• Atomic Habits: 120/280 pages — on track
+
+⚠️ Alert:
+• "Read 12 books" goal — no activity in 12 days
+
+[✓ 1] [✓ 2] [✓ 3] [✓ 4] [✓ 5]
 ```
 
-- Only shows if: notifications not granted AND not previously dismissed
-- Subtle styling: light blue/gray background, small text
-- Dismisses permanently (localStorage flag)
+---
+
+## Performance Considerations
+
+Running 4 agents sequentially means 4 Gemini API calls per plan generation. On Gemini Flash free tier:
+
+- Each call takes ~2-4 seconds
+- Total: ~8-16 seconds for a full plan
+- Free tier: 15 requests/minute → 4 calls is fine, even with headroom
+
+### Optimization Strategies
+
+1. **Skip agents when unnecessary:**
+   - Skip Email Agent if Gmail is not connected
+   - Skip Research Agent if no goals have learning-related keywords
+   - Skip Accountability Agent if it ran within the last 6 hours (cache the output)
+
+2. **Cache accountability insights:**
+   - The Accountability Agent's output changes slowly (daily patterns, not hourly)
+   - Run it once per day (during morning routine) and cache the result
+   - The orchestrator uses cached output instead of re-running
+
+3. **Show progressive results in the UI:**
+   - Don't wait for all agents to finish before showing anything
+   - As each agent completes, update the relevant section of the dashboard
+   - Implementation: use Server-Sent Events (SSE) or poll a status endpoint
+
+**Recommended approach for progressive loading:**
+
+Create a `POST /api/generate-plan/stream` endpoint that returns agent results as they complete:
+
+```python
+from flask import Response, stream_with_context
+import json
+
+@app.route('/api/generate-plan/stream', methods=['POST'])
+def generate_plan_stream():
+    def generate():
+        orchestrator = Orchestrator()
+        
+        # Step 1: Accountability
+        yield json.dumps({"agent": "accountability", "status": "running"}) + "\n"
+        result = orchestrator.run_accountability()
+        yield json.dumps({"agent": "accountability", "status": "done", "data": result}) + "\n"
+        
+        # Step 2: Email
+        yield json.dumps({"agent": "email", "status": "running"}) + "\n"
+        result = orchestrator.run_email()
+        yield json.dumps({"agent": "email", "status": "done", "data": result}) + "\n"
+        
+        # ... etc for each agent
+    
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/plain',
+        headers={'X-Content-Type-Options': 'nosniff'}
+    )
+```
+
+Frontend reads the stream and updates each section as data arrives:
+```javascript
+const response = await fetch('/api/generate-plan/stream', { method: 'POST' });
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    const lines = decoder.decode(value).split('\n').filter(Boolean);
+    for (const line of lines) {
+        const update = JSON.parse(line);
+        updateAgentSection(update.agent, update.status, update.data);
+    }
+}
+```
+
+This way the user sees each section populate in real-time instead of staring at a spinner for 15 seconds.
 
 ---
 
 ## Error Handling
 
-### Telegram Bot
-- If `TELEGRAM_BOT_TOKEN` is not set: bot doesn't start, no error, just skip. Log a message: "Telegram bot token not configured, skipping bot startup."
-- If bot fails to start (invalid token): catch the error, log it, don't crash Flask
-- If sending a message fails (user blocked bot, network error): catch, log, continue. Don't retry for notifications — they're not critical.
-- If the user hasn't sent /start yet (no chat_id): scheduled messages simply don't send. No error.
-
-### Scheduler
-- If a scheduled job fails: APScheduler logs the error by default. Configure it to NOT crash on job errors:
-  ```python
-  scheduler = BackgroundScheduler(job_defaults={'misfire_grace_time': 3600})
-  ```
-- If Flask restarts (debug mode reload): scheduler restarts cleanly due to `replace_existing=True`
-- If the PC was asleep during a scheduled time: `misfire_grace_time` allows the job to run late (within 1 hour for plans, 30 min for email scans)
-
-### Browser Notifications
-- If permission denied: silently stop trying. Don't nag the user.
-- If `Notification` API not available (e.g., HTTP without HTTPS): hide the banner entirely. Check with `if ('Notification' in window)`.
-
----
-
-## Updated `.env.example`
-
-```
-# LLM
-GEMINI_API_KEY=your-gemini-api-key
-
-# Gmail Integration (optional)
-GOOGLE_CREDENTIALS_PATH=credentials.json
-
-# Telegram Bot (optional)
-TELEGRAM_BOT_TOKEN=your-telegram-bot-token
-
-# Scheduler timezone (optional, default: UTC)
-DEFAULT_TIMEZONE=Asia/Kolkata
-```
-
----
-
-## README Additions
-
-### Telegram Bot (Optional)
-
-Get your daily plan delivered to Telegram and manage tasks from your phone.
-
-**Setup:**
-
-1. Open Telegram and search for `@BotFather`
-2. Send `/newbot` and follow the prompts to create a bot
-3. Copy the token BotFather gives you
-4. Add it to your `.env` file: `TELEGRAM_BOT_TOKEN=your-token`
-5. Restart jenax
-6. Open your new bot in Telegram and send `/start`
-7. That's it — you'll start receiving your morning plan automatically
-
-**Commands:**
-- `/plan` — Generate today's plan
-- `/tasks` — View today's tasks
-- `/done 3` — Mark task #3 as done
-- `/progress` — See your stats
-- `/review` — End-of-day review
-- `/settings` — Change notification times
-- `/stop` / `/resume` — Pause/resume notifications
-
-### Automation
-
-jenax can run tasks automatically:
-- **Morning plan** — generated at 7:00 AM (configurable)
-- **Evening reminder** — sent at 9:00 PM (configurable)
-- **Email scanning** — every 4 hours (configurable, requires Gmail connection)
-
-Configure these in the app's sidebar under "Automation", or via the Telegram `/settings` command.
+- If any single agent fails, the orchestrator continues with the remaining agents. Only a Planner failure is critical (raises an error and falls back to legacy single-prompt mode).
+- All agent errors are logged to `agent_logs` with `success=False` and the error message.
+- The frontend shows which agents succeeded/failed in the agent status sidebar.
+- If the Gemini API rate limit is hit mid-pipeline, wait 10 seconds and retry once. If it fails again, skip that agent.
+- Agent logs older than 30 days should be cleaned up by the scheduler (add to the data_cleanup job).
 
 ---
 
@@ -744,35 +1123,37 @@ Configure these in the app's sidebar under "Automation", or via the Telegram `/s
 
 Build in this exact sequence:
 
-1. **`scheduler.py`** — set up APScheduler with placeholder jobs. Integrate with `app.py`. Verify jobs run on schedule using simple print/log statements.
+1. **`agents/base.py`** — Base agent class with Gemini call, logging, error handling. Create `agent_logs` table. Test with a dummy agent.
 
-2. **`telegram_bot.py` — core setup** — bot initialization, `/start` and `/help` commands, chat_id storage. Verify the bot responds in Telegram.
+2. **`agents/planner_agent.py`** — Port existing planning logic to the agent pattern. Verify it produces identical output to the current system. Keep old code as fallback.
 
-3. **`telegram_bot.py` — task commands** — `/plan`, `/tasks`, `/done`, `/progress`, `/goals` commands. Verify each works correctly.
+3. **`agents/orchestrator.py`** — Basic orchestrator that only runs the planner agent. Wire it into `POST /api/generate-plan`. Verify the existing flow still works.
 
-4. **`telegram_bot.py` — review commands** — `/review` with mood selection via inline buttons. Verify the flow works.
+4. **`agents/email_agent.py`** — Port existing email processing to agent pattern. Wire into orchestrator. Verify email scanning still works.
 
-5. **`telegram_bot.py` — settings** — `/settings`, `/stop`, `/resume` commands. Verify settings are saved and schedule updates.
+5. **`agents/accountability_agent.py`** — New agent. Create `accountability_insights` table. Test standalone via a temporary API endpoint.
 
-6. **Connect scheduler to bot** — wire `morning_routine` to generate plan + send via Telegram. Wire `evening_routine` to send reminder. Wire `scheduled_email_scan` to scan + alert on high-priority items. Test by manually triggering via the API.
+6. **`agents/research_agent.py`** — New agent. Create `learning_resources` table. Build CRUD routes for resources. Test standalone.
 
-7. **API routes** — add `/api/config/telegram`, `/api/scheduler/status`, `/api/scheduler/trigger`.
+7. **Orchestrator full pipeline** — Wire all 4 agents into the orchestrator. Test the complete flow. Implement skip logic for unavailable agents.
 
-8. **Frontend: sidebar updates** — Telegram connection status, automation settings display.
+8. **Frontend: accountability alerts** — Add insight banners at top of dashboard.
 
-9. **Frontend: settings modal** — schedule configuration UI.
+9. **Frontend: learning corner** — Add the learning section with progress bars, resource management modal.
 
-10. **Frontend: browser notifications** — permission banner, midday and evening notification logic.
+10. **Frontend: agent status sidebar** — Add the agent status display.
 
-11. **Polish** — test all edge cases: bot not configured, PC sleep/wake, timezone changes, debug mode double-start, notification permissions denied.
+11. **Frontend: progressive loading** — Implement SSE/streaming for plan generation so sections populate as agents complete.
+
+12. **Telegram updates** — Add `/resources`, `/progress_update`, `/insights` commands. Update morning plan message format.
+
+13. **Performance optimization** — Add accountability caching, agent skip logic, log cleanup.
 
 ## Important Notes
 
-- The Telegram bot runs in a daemon thread — it must not block Flask and must not crash the main process.
-- All scheduled jobs must be idempotent — running them twice should not create duplicate tasks or send duplicate messages.
-- Use `replace_existing=True` on all jobs so restarts don't create duplicate schedulers.
-- The scheduler and bot are both OPTIONAL. If tokens are not configured, the app works exactly as before. No errors, no warnings in the UI — just the connection section shows "Not connected".
-- Test the threading carefully. Flask and the Telegram bot share the SQLite database — use proper connection handling (one connection per operation, not a shared global connection). SQLite handles concurrent reads fine but writes need care.
-- For the Telegram inline keyboards, always include a `callback_data` string that encodes the action and target (e.g., `"done_3"` for completing task 3, `"mood_good"` for mood selection).
-- `python-telegram-bot` v21 is fully async. Since it runs in its own thread with its own event loop, this is fine. But database calls from bot handlers should use synchronous SQLite (not async).
-- Browser notifications are a progressive enhancement. They should never block or delay page rendering. All notification logic goes at the end of the script tag.
+- The multi-agent system should be a TRANSPARENT upgrade. If the user doesn't add any learning resources, the Research Agent simply doesn't run. If Gmail isn't connected, the Email Agent is skipped. The minimum viable experience is the same as Phase 1: just the Planner generating tasks.
+- Keep the legacy single-prompt plan generation as a fallback. If the orchestrator fails entirely, fall back silently.
+- Each agent's prompt is independent — they don't see each other's full prompts. The orchestrator passes only extracted summaries between them (not raw outputs).
+- Be careful with prompt size. Each agent's context should stay under ~4000 tokens of input. The Planner agent receives the most context (its own data + summaries from other agents) but should still stay well within Gemini Flash's context window.
+- Agent logs can grow fast (4 entries per plan generation). The 30-day cleanup in the scheduler job is important.
+- The streaming endpoint is a nice-to-have. If it's too complex, a simpler approach is: generate the full plan (show a spinner for 10-15 seconds), then display everything at once. Implement streaming only if the wait feels too long in practice.

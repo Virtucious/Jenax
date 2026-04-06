@@ -25,7 +25,11 @@
       "Bash(\"C:\\\\Program Files\\\\Python310\\\\python.exe\" -m pip install \"python-telegram-bot==21.*\" apscheduler pytz)",
       "Bash(\"C:\\\\Program Files\\\\Python310\\\\python.exe\" -c \"import telegram; print\\('ok'\\)\")",
       "Bash(\"C:\\\\Program Files\\\\Python310\\\\python.exe\" app.py)",
-      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -m pip install \"python-telegram-bot==21.*\" apscheduler pytz)"
+      "Bash(\"C:\\\\Users\\\\amanr\\\\anaconda3\\\\python.exe\" -m pip install \"python-telegram-bot==21.*\" apscheduler pytz)",
+      "Bash(python -c ':*)",
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(.venv/Scripts/python -c ':*)"
     ]
   }
 }

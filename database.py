@@ -106,6 +106,49 @@ def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS agent_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agent_name TEXT NOT NULL,
+                trigger_type TEXT NOT NULL,
+                input_summary TEXT,
+                raw_prompt TEXT,
+                raw_response TEXT,
+                parsed_output TEXT,
+                tokens_used INTEGER,
+                duration_ms INTEGER,
+                success BOOLEAN DEFAULT 1,
+                error_message TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS learning_resources (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                goal_id INTEGER REFERENCES goals(id) ON DELETE CASCADE,
+                type TEXT CHECK(type IN ('book', 'course', 'tutorial', 'article', 'video', 'other')),
+                title TEXT NOT NULL,
+                author TEXT,
+                url TEXT,
+                total_units INTEGER,
+                completed_units INTEGER DEFAULT 0,
+                unit_label TEXT DEFAULT 'chapter',
+                status TEXT DEFAULT 'in_progress' CHECK(status IN ('not_started', 'in_progress', 'completed', 'dropped')),
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS accountability_insights (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                insight_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                related_goal_id INTEGER REFERENCES goals(id) ON DELETE SET NULL,
+                severity TEXT CHECK(severity IN ('info', 'warning', 'critical')),
+                acknowledged BOOLEAN DEFAULT 0,
+                valid_until DATE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
     # Schema migrations — safe to re-run
@@ -128,6 +171,10 @@ def init_db():
             )"""
         )
         conn.execute("DELETE FROM email_digests WHERE date < date('now', '-7 days')")
+
+    # Clean up agent_logs older than 30 days
+    with conn:
+        conn.execute("DELETE FROM agent_logs WHERE created_at < datetime('now', '-30 days')")
 
     conn.close()
 
@@ -885,3 +932,234 @@ def update_bot_config(service, **fields):
         conn.execute(f"UPDATE bot_config SET {set_clause} WHERE service = ?", values)
     conn.close()
     return get_bot_config(service)
+
+
+# ---------------------------------------------------------------------------
+# Agent Logs
+# ---------------------------------------------------------------------------
+
+def get_agent_logs(agent_name=None, limit=20):
+    conn = get_connection()
+    if agent_name:
+        rows = conn.execute(
+            """SELECT id, agent_name, trigger_type, input_summary, duration_ms,
+                      success, error_message, created_at
+               FROM agent_logs WHERE agent_name = ?
+               ORDER BY created_at DESC LIMIT ?""",
+            (agent_name, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """SELECT id, agent_name, trigger_type, input_summary, duration_ms,
+                      success, error_message, created_at
+               FROM agent_logs
+               ORDER BY created_at DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_latest_agent_log(agent_name):
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT * FROM agent_logs WHERE agent_name = ?
+           ORDER BY created_at DESC LIMIT 1""",
+        (agent_name,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_agents_status():
+    """Return last run time and status for each agent."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT agent_name,
+                  MAX(created_at) AS last_run,
+                  success AS last_status
+           FROM agent_logs
+           GROUP BY agent_name""",
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Learning Resources
+# ---------------------------------------------------------------------------
+
+def get_learning_resources(goal_id=None):
+    conn = get_connection()
+    if goal_id:
+        rows = conn.execute(
+            "SELECT * FROM learning_resources WHERE goal_id = ? ORDER BY created_at ASC",
+            (goal_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM learning_resources ORDER BY created_at ASC"
+        ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_learning_resource(resource_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM learning_resources WHERE id = ?", (resource_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def create_learning_resource(goal_id, type_, title, author=None, url=None,
+                              total_units=None, unit_label="chapter", notes=None):
+    conn = get_connection()
+    with conn:
+        cur = conn.execute(
+            """INSERT INTO learning_resources
+               (goal_id, type, title, author, url, total_units, unit_label, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (goal_id, type_, title, author, url, total_units, unit_label, notes),
+        )
+        resource_id = cur.lastrowid
+    conn.close()
+    return get_learning_resource(resource_id)
+
+
+def update_learning_resource(resource_id, **fields):
+    allowed = {"goal_id", "type", "title", "author", "url", "total_units",
+               "completed_units", "unit_label", "status", "notes"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return get_learning_resource(resource_id)
+    updates["updated_at"] = datetime.utcnow().isoformat()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [resource_id]
+    conn = get_connection()
+    with conn:
+        conn.execute(f"UPDATE learning_resources SET {set_clause} WHERE id = ?", values)
+    conn.close()
+    return get_learning_resource(resource_id)
+
+
+def delete_learning_resource(resource_id):
+    conn = get_connection()
+    with conn:
+        conn.execute("DELETE FROM learning_resources WHERE id = ?", (resource_id,))
+    conn.close()
+
+
+def get_recent_learning_tasks(days=7):
+    """Return recent tasks that appear to be learning-related (keyword match)."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT * FROM daily_tasks
+           WHERE date >= date('now', ?)
+             AND (title LIKE '%read%' OR title LIKE '%study%' OR title LIKE '%learn%'
+                  OR title LIKE '%chapter%' OR title LIKE '%course%' OR title LIKE '%practice%'
+                  OR title LIKE '%review%' OR title LIKE '%exercise%')
+           ORDER BY date DESC""",
+        (f"-{days} days",),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Accountability Insights
+# ---------------------------------------------------------------------------
+
+def save_accountability_insight(insight_type, title, description=None,
+                                 related_goal_id=None, severity="info",
+                                 valid_until=None):
+    """Insert an insight, skipping if an unacknowledged one with the same title exists."""
+    conn = get_connection()
+    existing = conn.execute(
+        """SELECT id FROM accountability_insights
+           WHERE title = ? AND acknowledged = 0
+             AND (valid_until IS NULL OR valid_until >= date('now'))""",
+        (title,),
+    ).fetchone()
+    if existing:
+        conn.close()
+        return None
+    with conn:
+        cur = conn.execute(
+            """INSERT INTO accountability_insights
+               (insight_type, title, description, related_goal_id, severity, valid_until)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (insight_type, title, description, related_goal_id, severity, valid_until),
+        )
+        insight_id = cur.lastrowid
+    conn.close()
+    return get_accountability_insight(insight_id)
+
+
+def get_accountability_insight(insight_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM accountability_insights WHERE id = ?", (insight_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_active_insights(limit=20):
+    """Return unacknowledged, non-expired insights, newest first."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT * FROM accountability_insights
+           WHERE acknowledged = 0
+             AND (valid_until IS NULL OR valid_until >= date('now'))
+           ORDER BY created_at DESC LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def acknowledge_insight(insight_id):
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            "UPDATE accountability_insights SET acknowledged = 1 WHERE id = ?",
+            (insight_id,),
+        )
+    conn.close()
+    return get_accountability_insight(insight_id)
+
+
+# ---------------------------------------------------------------------------
+# Additional helpers for agents
+# ---------------------------------------------------------------------------
+
+def get_recent_reflections(days=14):
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT * FROM daily_reflections
+           WHERE date >= date('now', ?)
+           ORDER BY date DESC""",
+        (f"-{days} days",),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_goal_last_activity():
+    """Return {goal_id: last_completed_date} for all goals that have tasks."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT goal_id, MAX(completed_at) AS last_completed
+           FROM daily_tasks
+           WHERE completed = 1 AND goal_id IS NOT NULL
+           GROUP BY goal_id"""
+    ).fetchall()
+    conn.close()
+    result = {}
+    for r in rows:
+        if r["last_completed"]:
+            # completed_at is a full datetime; take just the date part
+            result[r["goal_id"]] = r["last_completed"][:10]
+    return result

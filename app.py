@@ -458,6 +458,235 @@ def scheduler_trigger(job_id):
 
 
 # ---------------------------------------------------------------------------
+# Learning Resources
+# ---------------------------------------------------------------------------
+
+@app.route("/api/resources", methods=["GET"])
+def list_resources():
+    goal_id = request.args.get("goal_id", type=int)
+    return jsonify(db.get_learning_resources(goal_id=goal_id))
+
+
+@app.route("/api/resources", methods=["POST"])
+def create_resource():
+    data = request.get_json(force=True) or {}
+    if not data.get("title"):
+        return jsonify({"error": "title is required"}), 400
+    resource = db.create_learning_resource(
+        goal_id=data.get("goal_id"),
+        type_=data.get("type", "book"),
+        title=data["title"],
+        author=data.get("author"),
+        url=data.get("url"),
+        total_units=data.get("total_units"),
+        unit_label=data.get("unit_label", "chapter"),
+        notes=data.get("notes"),
+    )
+    return jsonify(resource), 201
+
+
+@app.route("/api/resources/<int:resource_id>", methods=["PUT"])
+def update_resource(resource_id):
+    data = request.get_json(force=True) or {}
+    resource = db.get_learning_resource(resource_id)
+    if not resource:
+        return jsonify({"error": "Not found"}), 404
+    # Map "type" → "type_" for DB layer
+    if "type" in data:
+        data["type"] = data["type"]  # kept as-is; db function uses keyword arg
+    allowed = {"goal_id", "type", "title", "author", "url", "total_units",
+               "completed_units", "unit_label", "status", "notes"}
+    updates = {k: v for k, v in data.items() if k in allowed}
+    return jsonify(db.update_learning_resource(resource_id, **updates))
+
+
+@app.route("/api/resources/<int:resource_id>/progress", methods=["PATCH"])
+def update_resource_progress(resource_id):
+    data = request.get_json(force=True) or {}
+    completed_units = data.get("completed_units")
+    if completed_units is None:
+        return jsonify({"error": "completed_units is required"}), 400
+    resource = db.get_learning_resource(resource_id)
+    if not resource:
+        return jsonify({"error": "Not found"}), 404
+    updated = db.update_learning_resource(resource_id, completed_units=completed_units)
+    return jsonify(updated)
+
+
+@app.route("/api/resources/<int:resource_id>", methods=["DELETE"])
+def delete_resource(resource_id):
+    if not db.get_learning_resource(resource_id):
+        return jsonify({"error": "Not found"}), 404
+    db.delete_learning_resource(resource_id)
+    return jsonify({"success": True})
+
+
+# ---------------------------------------------------------------------------
+# Accountability Insights
+# ---------------------------------------------------------------------------
+
+@app.route("/api/insights", methods=["GET"])
+def list_insights():
+    insights = db.get_active_insights(limit=20)
+    return jsonify(insights)
+
+
+@app.route("/api/insights/<int:insight_id>/acknowledge", methods=["PATCH"])
+def acknowledge_insight(insight_id):
+    insight = db.get_accountability_insight(insight_id)
+    if not insight:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(db.acknowledge_insight(insight_id))
+
+
+# ---------------------------------------------------------------------------
+# Agent Logs & Status
+# ---------------------------------------------------------------------------
+
+@app.route("/api/agents/logs", methods=["GET"])
+def agent_logs():
+    agent = request.args.get("agent")
+    limit = request.args.get("limit", 20, type=int)
+    return jsonify(db.get_agent_logs(agent_name=agent, limit=limit))
+
+
+@app.route("/api/agents/status", methods=["GET"])
+def agent_status():
+    known = ["planner", "email", "research", "accountability"]
+    by_name = {row["agent_name"]: row for row in db.get_agents_status()}
+    result = []
+    for name in known:
+        row = by_name.get(name)
+        result.append({
+            "name": name,
+            "available": True,
+            "last_run": row["last_run"] if row else None,
+            "last_status": "success" if (row and row.get("last_status")) else ("failed" if row else "never"),
+        })
+    return jsonify({"agents": result})
+
+
+# ---------------------------------------------------------------------------
+# Streaming plan generation (SSE)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/generate-plan/stream", methods=["POST"])
+def generate_plan_stream():
+    from config import GEMINI_API_KEY
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "GEMINI_API_KEY is not configured"}), 503
+
+    from flask import Response, stream_with_context
+    from agents.orchestrator import Orchestrator, _is_gmail_connected, _has_learning_goals
+    from agents.orchestrator import _accountability_ran_recently
+    import json as _json
+
+    def generate():
+        orchestrator = Orchestrator()
+        results = {}
+
+        # Accountability
+        yield _json.dumps({"agent": "accountability", "status": "running"}) + "\n"
+        try:
+            if _accountability_ran_recently():
+                cached_log = db.get_latest_agent_log("accountability")
+                if cached_log and cached_log.get("parsed_output"):
+                    results["accountability"] = _json.loads(cached_log["parsed_output"])
+                else:
+                    results["accountability"] = None
+            else:
+                results["accountability"] = orchestrator.accountability_agent.run(
+                    trigger_type="orchestrated"
+                )
+                orchestrator._save_insights(results["accountability"])
+            yield _json.dumps({"agent": "accountability", "status": "done",
+                               "data": results["accountability"]}) + "\n"
+        except Exception as e:
+            results["accountability"] = None
+            yield _json.dumps({"agent": "accountability", "status": "error",
+                               "error": str(e)}) + "\n"
+
+        # Email
+        if _is_gmail_connected():
+            yield _json.dumps({"agent": "email", "status": "running"}) + "\n"
+            try:
+                import gmail_client
+                emails = gmail_client.fetch_recent_emails(hours=24, max_results=50) or []
+                results["email"] = orchestrator.email_agent.run(
+                    extra_input={"emails": emails}, trigger_type="orchestrated"
+                )
+                yield _json.dumps({"agent": "email", "status": "done",
+                                   "data": results["email"]}) + "\n"
+            except Exception as e:
+                results["email"] = None
+                yield _json.dumps({"agent": "email", "status": "error",
+                                   "error": str(e)}) + "\n"
+        else:
+            results["email"] = None
+
+        # Research
+        if _has_learning_goals():
+            yield _json.dumps({"agent": "research", "status": "running"}) + "\n"
+            try:
+                results["research"] = orchestrator.research_agent.run(
+                    trigger_type="orchestrated"
+                )
+                yield _json.dumps({"agent": "research", "status": "done",
+                                   "data": results["research"]}) + "\n"
+            except Exception as e:
+                results["research"] = None
+                yield _json.dumps({"agent": "research", "status": "error",
+                                   "error": str(e)}) + "\n"
+        else:
+            results["research"] = None
+
+        # Planner
+        yield _json.dumps({"agent": "planner", "status": "running"}) + "\n"
+        try:
+            agent_inputs = {
+                "email_actions": orchestrator._extract_email_actions(results.get("email")),
+                "learning_tasks": orchestrator._extract_learning_tasks(results.get("research")),
+                "accountability_warnings": orchestrator._extract_warnings(results.get("accountability")),
+            }
+            results["planner"] = orchestrator.planner.run(
+                extra_input=agent_inputs, trigger_type="orchestrated"
+            )
+
+            # Persist tasks
+            today_str = date.today().isoformat()
+            inserted = []
+            for t in results["planner"].get("tasks", []):
+                task = db.create_task(
+                    title=t.get("title", "Untitled"),
+                    description=t.get("description"),
+                    priority=t.get("priority", "medium"),
+                    goal_id=t.get("goal_id"),
+                    date_str=today_str,
+                    source="ai",
+                    estimated_minutes=t.get("estimated_minutes"),
+                )
+                inserted.append(task)
+            results["planner"]["tasks"] = inserted
+
+            all_today = db.get_tasks_for_date(today_str)
+            done = sum(1 for t in all_today if t["completed"])
+            db.upsert_reflection(today_str, done, len(all_today),
+                                 ai_summary=results["planner"].get("daily_insight"))
+
+            final = orchestrator._merge_outputs(results)
+            final["tasks"] = inserted
+            yield _json.dumps({"agent": "planner", "status": "done", "data": final}) + "\n"
+        except Exception as e:
+            yield _json.dumps({"agent": "planner", "status": "error", "error": str(e)}) + "\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/plain",
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"},
+    )
+
+
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     import os, threading

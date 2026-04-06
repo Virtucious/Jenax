@@ -50,6 +50,9 @@ def start_bot():
     application.add_handler(CommandHandler("settings", settings_command))
     application.add_handler(CommandHandler("stop", stop_command))
     application.add_handler(CommandHandler("resume", resume_command))
+    application.add_handler(CommandHandler("resources", resources_command))
+    application.add_handler(CommandHandler("progress_update", progress_update_command))
+    application.add_handler(CommandHandler("insights", insights_command))
     application.add_handler(CallbackQueryHandler(button_callback))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
@@ -101,6 +104,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/progress — See your current streak and weekly stats\n"
         "/goals — List your active goals\n"
         "/review — Trigger an end-of-day review\n"
+        "/resources — List your learning resources with progress\n"
+        "/progress_update <number> <units> — Update resource progress\n"
+        "/insights — View accountability insights\n"
         "/settings — Configure notification times\n"
         "/stop — Pause all notifications\n"
         "/resume — Resume notifications"
@@ -122,7 +128,7 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     import database as db
     tasks = db.get_tasks_for_date(date.today().isoformat())
-    text, keyboard = _format_plan(result.get("daily_insight"), tasks)
+    text, keyboard = _format_plan(result.get("daily_insight"), tasks, plan_result=result)
     await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
 
 
@@ -211,6 +217,88 @@ async def goals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lines.append("")
 
     await update.message.reply_text("\n".join(lines).strip())
+
+
+async def resources_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    import database as db
+    resources = db.get_learning_resources()
+    if not resources:
+        await update.message.reply_text(
+            "📚 No learning resources yet.\nAdd some in the web app via Learning Corner → Manage Resources."
+        )
+        return
+
+    type_icons = {"book": "📖", "course": "🎓", "tutorial": "📝", "article": "📄", "video": "🎥", "other": "📦"}
+    lines = ["📚 <b>Your Learning Resources</b>\n"]
+    for i, r in enumerate(resources, 1):
+        icon = type_icons.get(r["type"], "📦")
+        has_prog = r.get("total_units") and r["total_units"] > 0
+        if has_prog:
+            pct = round((r["completed_units"] / r["total_units"]) * 100)
+            bar_filled = int(pct / 10)
+            bar = "█" * bar_filled + "░" * (10 - bar_filled)
+            prog_str = f"\n   {bar} {r['completed_units']}/{r['total_units']} {r['unit_label']}s ({pct}%)"
+        else:
+            prog_str = ""
+        lines.append(f"{i}. {icon} <b>{_esc(r['title'])}</b>{prog_str}")
+
+    lines.append("\nUse /progress_update &lt;number&gt; &lt;units&gt; to update")
+    lines.append("e.g. /progress_update 1 9")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def progress_update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    import database as db
+    args = context.args
+    if len(args) < 2 or not args[0].isdigit() or not args[1].isdigit():
+        await update.message.reply_text("Usage: /progress_update <number> <completed_units>\ne.g. /progress_update 1 9")
+        return
+
+    idx = int(args[0]) - 1
+    units = int(args[1])
+    resources = db.get_learning_resources()
+    if idx < 0 or idx >= len(resources):
+        await update.message.reply_text(f"No resource #{args[0]}. Use /resources to see your list.")
+        return
+
+    r = resources[idx]
+    updated = db.update_learning_resource(r["id"], completed_units=units)
+    has_prog = updated.get("total_units") and updated["total_units"] > 0
+    if has_prog:
+        pct = round((units / updated["total_units"]) * 100)
+        msg = f"📖 Updated '{_esc(updated['title'])}': {units}/{updated['total_units']} {updated['unit_label']}s ({pct}%)"
+    else:
+        msg = f"📖 Updated '{_esc(updated['title'])}': {units} {updated['unit_label']}s completed"
+    await update.message.reply_text(msg, parse_mode="HTML")
+
+
+async def insights_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    import database as db
+    insights = db.get_active_insights(limit=10)
+    if not insights:
+        await update.message.reply_text("👁 No active accountability insights right now. Generate a plan to get fresh insights!")
+        return
+
+    type_icons = {"pattern": "📊", "warning": "⚠️", "nudge": "👉", "celebration": "🎉"}
+    progress = db.get_progress_data(days=30)
+    overall_health = "steady"
+
+    lines = ["👁 <b>Accountability Insights</b>\n"]
+    for ins in insights:
+        icon = type_icons.get(ins["insight_type"], "💡")
+        lines.append(f"{icon} <b>{_esc(ins['title'])}</b>")
+        if ins.get("description"):
+            lines.append(f"  {_esc(ins['description'])}")
+        if ins.get("suggested_action"):
+            lines.append(f"  → {_esc(ins['suggested_action'])}")
+        lines.append("")
+
+    streak = progress.get("current_streak", 0)
+    lines.append(f"📊 Overall health: {overall_health.capitalize()}")
+    if streak:
+        lines.append(f"🔥 Current streak: {streak} day{'s' if streak != 1 else ''}")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def review_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -504,7 +592,7 @@ async def send_morning_plan(chat_id: str):
     if "error" in result:
         return
     tasks = db.get_tasks_for_date(date.today().isoformat())
-    text, keyboard = _format_plan(result.get("daily_insight"), tasks)
+    text, keyboard = _format_plan(result.get("daily_insight"), tasks, plan_result=result)
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
     async with bot:
         await bot.send_message(chat_id=chat_id, text=text, reply_markup=keyboard, parse_mode="HTML")
@@ -554,23 +642,62 @@ async def send_email_alert(chat_id: str, action_items: list):
 # Formatting helpers
 # ---------------------------------------------------------------------------
 
-def _format_plan(daily_insight, tasks):
+def _format_plan(daily_insight, tasks, plan_result=None):
+    """Format the morning plan message, using richer multi-agent data when available."""
     today_label = date.today().strftime("%a, %b %d").replace(" 0", " ")
-    lines = [f"📅 <b>Your Plan for Today ({today_label})</b>\n"]
-    if daily_insight:
-        lines.append(f'💡 "{_esc(daily_insight)}"\n')
+    lines = [f"📅 <b>Your Plan for {today_label}</b>\n"]
 
+    if daily_insight:
+        lines.append(f'💡 "{_esc(daily_insight)}"')
+
+    if plan_result:
+        workload = plan_result.get("workload_assessment")
+        health = plan_result.get("overall_health")
+        workload_map = {"light": "Light", "moderate": "Moderate", "heavy": "Heavy"}
+        health_map = {"thriving": "Thriving", "steady": "Steady", "struggling": "Struggling", "critical": "Critical"}
+        parts = []
+        if workload:
+            parts.append(f"Workload: {workload_map.get(workload, workload)}")
+        if health:
+            parts.append(f"Health: {health_map.get(health, health)}")
+        if parts:
+            lines.append("📊 " + " | ".join(parts))
+    lines.append("")
+
+    # Tasks
+    energy_icons = {"high": "⚡", "medium": "☕", "low": "🌿"}
     buttons = []
+    lines.append("📋 <b>Tasks:</b>")
     for i, t in enumerate(tasks, 1):
         emoji = PRIORITY_EMOJI.get(t.get("priority", "medium"), "🟡")
-        status = "✅ " if t["completed"] else f"{emoji} "
+        energy = energy_icons.get(t.get("energy_level"), "")
+        status = "✅ " if t["completed"] else f"{emoji} {energy} "
         lines.append(f"{i}. {status}{_esc(t['title'])}")
         if not t["completed"]:
             buttons.append(InlineKeyboardButton(f"✓ {i}", callback_data=f"done_{t['id']}"))
 
+    # Learning summary
+    if plan_result:
+        learning_tasks = plan_result.get("learning_tasks", [])
+        progress_alerts = plan_result.get("progress_alerts", [])
+        if learning_tasks:
+            lines.append("\n📚 <b>Learning:</b>")
+            for lt in learning_tasks[:3]:
+                lines.append(f"• {_esc(lt.get('title', ''))}")
+        if progress_alerts:
+            for a in progress_alerts[:2]:
+                lines.append(f"⚠ {_esc(a.get('message', ''))}")
+
+        # Accountability alerts
+        acc_insights = plan_result.get("accountability_insights", [])
+        warnings = [i for i in acc_insights if i.get("severity") in ("warning", "critical")]
+        if warnings:
+            lines.append("\n⚠️ <b>Alert:</b>")
+            for w in warnings[:2]:
+                lines.append(f"• {_esc(w.get('title', ''))}")
+
     keyboard = None
     if buttons:
-        # Split into rows of 5
         rows = [buttons[i:i + 5] for i in range(0, len(buttons), 5)]
         keyboard = InlineKeyboardMarkup(rows)
         lines.append("\nTap a button to mark as done:")
