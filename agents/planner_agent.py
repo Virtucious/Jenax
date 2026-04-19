@@ -32,6 +32,8 @@ class PlannerAgent(BaseAgent):
         carried_tasks = [t for t in today_tasks if t.get("is_carried")]
         dow_patterns = db.get_day_of_week_patterns()
         pending_email_items = db.get_pending_email_action_items(today.isoformat())
+        today_blueprint_units = db.get_units_scheduled_today()
+        active_habits = db.get_all_habits()
 
         return {
             "today": today.isoformat(),
@@ -44,6 +46,8 @@ class PlannerAgent(BaseAgent):
             "carried_tasks": carried_tasks,
             "dow_patterns": dow_patterns,
             "pending_email_items": pending_email_items,
+            "today_blueprint_units": today_blueprint_units,
+            "active_habits": active_habits,
         }
 
     def build_prompt(self, context, extra_input=None):
@@ -57,6 +61,8 @@ class PlannerAgent(BaseAgent):
         carried_tasks = context["carried_tasks"]
         dow_patterns = context["dow_patterns"]
         pending_email_items = context["pending_email_items"]
+        today_blueprint_units = context.get("today_blueprint_units", [])
+        active_habits = context.get("active_habits", [])
 
         # Goal hierarchy text
         yearly = [g for g in active_goals if g["level"] == "yearly"]
@@ -170,6 +176,104 @@ class PlannerAgent(BaseAgent):
                     f"- {w}" for w in accountability_warnings
                 )
 
+        # Blueprint context: group today's units by blueprint
+        blueprint_context = ""
+        if today_blueprint_units or active_habits:
+            blueprint_context = "\n\n## Active Blueprints"
+            # Group units by blueprint
+            by_blueprint = {}
+            for u in today_blueprint_units:
+                bp_id = u.get("blueprint_id")
+                if bp_id not in by_blueprint:
+                    by_blueprint[bp_id] = {
+                        "goal_title": u.get("goal_title", ""),
+                        "blueprint_type": u.get("blueprint_type", ""),
+                        "unit_label": u.get("unit_label", "unit"),
+                        "estimated_pace": u.get("estimated_pace_minutes"),
+                        "actual_pace": u.get("actual_pace_minutes"),
+                        "units": [],
+                    }
+                by_blueprint[bp_id]["units"].append(u)
+
+            for bp_id, bp_data in by_blueprint.items():
+                bp_type = bp_data["blueprint_type"]
+                unit_label = bp_data["unit_label"]
+                est_pace = bp_data["estimated_pace"]
+                act_pace = bp_data["actual_pace"]
+                pace_str = ""
+                if act_pace:
+                    pace_str = f"estimated {est_pace or '?'}min/{unit_label}, actual {act_pace:.0f}min/{unit_label}"
+                elif est_pace:
+                    pace_str = f"estimated {est_pace}min/{unit_label}"
+
+                blueprint_context += f"\n\n### Blueprint: \"{bp_data['goal_title']}\" ({bp_type})"
+                if pace_str:
+                    blueprint_context += f"\nPace: {pace_str}"
+
+                blueprint_context += f"\nToday's scheduled units:"
+                for u in bp_data["units"]:
+                    meta_str = ""
+                    if u.get("metadata"):
+                        try:
+                            meta = json.loads(u["metadata"]) if isinstance(u["metadata"], str) else u["metadata"]
+                            parts = []
+                            if meta.get("page_range"):
+                                parts.append(f"pp. {meta['page_range']}")
+                            if meta.get("exercises"):
+                                parts.append(f"exercises: {', '.join(meta['exercises'])}")
+                            if parts:
+                                meta_str = " | " + " | ".join(parts)
+                        except Exception:
+                            pass
+                    eff_min = (act_pace or est_pace or u.get("estimated_minutes") or 30)
+                    diff_str = f" | {u['difficulty']:.1f}x difficulty" if u.get("difficulty") and u["difficulty"] != 1.0 else ""
+                    blueprint_context += (
+                        f"\n  - Unit #{u['unit_number']} (id:{u['id']}): \"{u['title']}\""
+                        f"\n    Estimated: {eff_min:.0f}min{diff_str}{meta_str}"
+                    )
+                    if u.get("description"):
+                        blueprint_context += f"\n    Description: {u['description']}"
+
+            # Habits scheduled today
+            if active_habits:
+                from datetime import datetime as _dt
+                today_dow = _dt.today().isoweekday()  # 1=Mon … 7=Sun
+                for h in active_habits:
+                    freq = h.get("frequency", "daily")
+                    custom_days = h.get("custom_days")
+                    scheduled = False
+                    if freq == "daily":
+                        scheduled = True
+                    elif freq == "weekdays":
+                        scheduled = today_dow <= 5
+                    elif freq == "weekends":
+                        scheduled = today_dow >= 6
+                    elif freq == "custom" and custom_days:
+                        try:
+                            days = json.loads(custom_days) if isinstance(custom_days, str) else custom_days
+                            scheduled = today_dow in days
+                        except Exception:
+                            pass
+                    if not scheduled:
+                        continue
+                    prog_type = h.get("progression_type", "constant")
+                    qty = h.get("current_quantity")
+                    unit = h.get("quantity_unit", "")
+                    target = h.get("target_quantity")
+                    blueprint_context += f"\n\n### Habit: \"{h.get('goal_title', h.get('blueprint_title', ''))}\" (habit)"
+                    blueprint_context += f"\nFrequency: {freq}"
+                    blueprint_context += f"\nToday's target: {qty} {unit}"
+                    if prog_type == "progressive" and target:
+                        blueprint_context += f" (progressive → {target} {unit})"
+
+        blueprint_task_rules = ""
+        if today_blueprint_units or active_habits:
+            blueprint_task_rules = """
+9. For LEARNING blueprints: reference specific chapters, page ranges, and exercises. Include the blueprint_unit_id from the unit's id field.
+10. For CAREER blueprints: specify how many applications/actions, criteria, and phase. Include blueprint_unit_id.
+11. For HABIT blueprints: use the exact current target quantity and unit. Keep description motivational.
+12. ALWAYS include blueprint_unit_id in your response when a task corresponds to a blueprint unit so the system can mark units complete when the task is done."""
+
         carry_rule = ""
         if carried_tasks:
             heavy = [t for t in carried_tasks if (t.get("carry_count") or 0) >= 3]
@@ -182,7 +286,7 @@ class PlannerAgent(BaseAgent):
 {goals_text}
 
 ## Recent Task History (Last 7 Days)
-{history_text}{existing_text}{extra_context}{agent_inputs_text}
+{history_text}{existing_text}{extra_context}{blueprint_context}{agent_inputs_text}
 
 ## Rules
 1. Generate 5-8 tasks maximum. Less is better.
@@ -192,7 +296,7 @@ class PlannerAgent(BaseAgent):
 5. If other agents flagged items, integrate them — don't just append.
 6. If a task has been carried forward 3+ times, either break it smaller or recommend dropping it.
 7. Total estimated time should not exceed 6 hours of focused work.
-8. If it's a historically low-completion day, generate fewer tasks (4–5 instead of 7–8).{carry_rule}
+8. If it's a historically low-completion day, generate fewer tasks (4–5 instead of 7–8).{carry_rule}{blueprint_task_rules}
 
 Respond ONLY with valid JSON:
 {{
@@ -204,7 +308,8 @@ Respond ONLY with valid JSON:
       "goal_id": <id or null>,
       "estimated_minutes": <number>,
       "energy_level": "high|medium|low",
-      "sequence_reason": "Why this task is in this position"
+      "sequence_reason": "Why this task is in this position",
+      "blueprint_unit_id": <id or null>
     }}
   ],
   "daily_insight": "One sentence of strategic advice",

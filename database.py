@@ -149,12 +149,93 @@ def init_db():
                 valid_until DATE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS goal_blueprints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                goal_id INTEGER UNIQUE REFERENCES goals(id) ON DELETE CASCADE,
+                blueprint_type TEXT NOT NULL CHECK(blueprint_type IN ('learning', 'career', 'habit')),
+                title TEXT NOT NULL,
+                source_info TEXT,
+                total_units INTEGER,
+                completed_units INTEGER DEFAULT 0,
+                unit_label TEXT DEFAULT 'unit',
+                schedule_strategy TEXT DEFAULT 'even' CHECK(schedule_strategy IN ('even', 'front_loaded', 'back_loaded', 'adaptive')),
+                difficulty_curve TEXT,
+                estimated_pace_minutes REAL,
+                actual_pace_minutes REAL,
+                pace_samples INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'active' CHECK(status IN ('draft', 'active', 'completed', 'paused')),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS blueprint_milestones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                blueprint_id INTEGER REFERENCES goal_blueprints(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                description TEXT,
+                target_date DATE,
+                completed BOOLEAN DEFAULT 0,
+                completed_at DATETIME,
+                sort_order INTEGER NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS blueprint_units (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                blueprint_id INTEGER REFERENCES goal_blueprints(id) ON DELETE CASCADE,
+                milestone_id INTEGER REFERENCES blueprint_milestones(id) ON DELETE SET NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                unit_number INTEGER NOT NULL,
+                estimated_minutes INTEGER,
+                actual_minutes INTEGER,
+                difficulty REAL DEFAULT 1.0,
+                scheduled_date DATE,
+                status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'completed', 'skipped')),
+                completed_at DATETIME,
+                depends_on INTEGER REFERENCES blueprint_units(id),
+                metadata TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS habit_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                blueprint_id INTEGER UNIQUE REFERENCES goal_blueprints(id) ON DELETE CASCADE,
+                frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekdays', 'weekends', 'custom')),
+                custom_days TEXT,
+                progression_type TEXT DEFAULT 'constant' CHECK(progression_type IN ('constant', 'progressive')),
+                base_quantity REAL,
+                current_quantity REAL,
+                target_quantity REAL,
+                quantity_unit TEXT,
+                increment_amount REAL,
+                increment_frequency TEXT DEFAULT 'weekly' CHECK(increment_frequency IN ('daily', 'weekly', 'biweekly', 'monthly')),
+                last_increment_date DATE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS career_pipeline (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                blueprint_id INTEGER REFERENCES goal_blueprints(id) ON DELETE CASCADE,
+                entry_type TEXT NOT NULL CHECK(entry_type IN ('application', 'interview', 'portfolio_piece', 'networking', 'skill_gap')),
+                title TEXT NOT NULL,
+                company TEXT,
+                status TEXT,
+                url TEXT,
+                notes TEXT,
+                deadline DATE,
+                follow_up_date DATE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
     # Schema migrations — safe to re-run
     migrations = [
         "ALTER TABLE daily_tasks ADD COLUMN carried_from DATE DEFAULT NULL",
         "ALTER TABLE daily_reflections ADD COLUMN mood TEXT CHECK(mood IN ('great', 'good', 'okay', 'rough', 'bad')) DEFAULT NULL",
+        "ALTER TABLE daily_tasks ADD COLUMN blueprint_unit_id INTEGER REFERENCES blueprint_units(id) ON DELETE SET NULL",
     ]
     for sql in migrations:
         try:
@@ -261,16 +342,16 @@ def delete_goal(goal_id):
 
 def create_task(title, description=None, priority="medium", goal_id=None,
                 date_str=None, source="manual", estimated_minutes=None,
-                carried_from=None):
+                carried_from=None, blueprint_unit_id=None):
     if date_str is None:
         date_str = date.today().isoformat()
     conn = get_connection()
     with conn:
         cur = conn.execute(
             """INSERT INTO daily_tasks
-               (title, description, priority, goal_id, date, source, estimated_minutes, carried_from)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (title, description, priority, goal_id, date_str, source, estimated_minutes, carried_from),
+               (title, description, priority, goal_id, date, source, estimated_minutes, carried_from, blueprint_unit_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (title, description, priority, goal_id, date_str, source, estimated_minutes, carried_from, blueprint_unit_id),
         )
         task_id = cur.lastrowid
     conn.close()
@@ -376,7 +457,10 @@ def carry_forward_tasks():
 def toggle_task(task_id):
     conn = get_connection()
     with conn:
-        row = conn.execute("SELECT completed FROM daily_tasks WHERE id = ?", (task_id,)).fetchone()
+        row = conn.execute(
+            "SELECT completed, blueprint_unit_id, estimated_minutes FROM daily_tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
         if row is None:
             conn.close()
             return None
@@ -387,6 +471,9 @@ def toggle_task(task_id):
             (new_completed, completed_at, task_id),
         )
     conn.close()
+    # When a task linked to a blueprint unit is marked done, update the unit and pace
+    if new_completed and row["blueprint_unit_id"]:
+        complete_blueprint_unit(row["blueprint_unit_id"], row["estimated_minutes"])
     return get_task(task_id)
 
 
@@ -1163,3 +1250,511 @@ def get_goal_last_activity():
             # completed_at is a full datetime; take just the date part
             result[r["goal_id"]] = r["last_completed"][:10]
     return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Goal Blueprints
+# ---------------------------------------------------------------------------
+
+def create_blueprint(goal_id, blueprint_type, title, source_info=None,
+                     total_units=0, unit_label="unit", schedule_strategy="even",
+                     difficulty_curve=None, estimated_pace_minutes=None):
+    conn = get_connection()
+    with conn:
+        cur = conn.execute(
+            """INSERT INTO goal_blueprints
+               (goal_id, blueprint_type, title, source_info, total_units, unit_label,
+                schedule_strategy, difficulty_curve, estimated_pace_minutes, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')""",
+            (
+                goal_id, blueprint_type, title,
+                json.dumps(source_info) if source_info and not isinstance(source_info, str) else source_info,
+                total_units, unit_label, schedule_strategy,
+                json.dumps(difficulty_curve) if difficulty_curve and not isinstance(difficulty_curve, str) else difficulty_curve,
+                estimated_pace_minutes,
+            ),
+        )
+        bp_id = cur.lastrowid
+    conn.close()
+    return get_blueprint(bp_id)
+
+
+def get_blueprint(blueprint_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM goal_blueprints WHERE id = ?", (blueprint_id,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    bp = dict(row)
+    milestones = conn.execute(
+        "SELECT * FROM blueprint_milestones WHERE blueprint_id = ? ORDER BY sort_order",
+        (blueprint_id,),
+    ).fetchall()
+    bp["milestones"] = [dict(m) for m in milestones]
+    counts = conn.execute(
+        "SELECT status, COUNT(*) AS cnt FROM blueprint_units WHERE blueprint_id = ? GROUP BY status",
+        (blueprint_id,),
+    ).fetchall()
+    bp["unit_counts"] = {r["status"]: r["cnt"] for r in counts}
+    conn.close()
+    return bp
+
+
+def get_blueprint_by_goal(goal_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM goal_blueprints WHERE goal_id = ?", (goal_id,)
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+    return get_blueprint(row["id"])
+
+
+def update_blueprint(blueprint_id, **fields):
+    allowed = {
+        "title", "blueprint_type", "source_info", "total_units", "unit_label",
+        "schedule_strategy", "difficulty_curve", "estimated_pace_minutes",
+        "actual_pace_minutes", "pace_samples", "completed_units", "status",
+    }
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return get_blueprint(blueprint_id)
+    updates["updated_at"] = datetime.utcnow().isoformat()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [blueprint_id]
+    conn = get_connection()
+    with conn:
+        conn.execute(f"UPDATE goal_blueprints SET {set_clause} WHERE id = ?", values)
+    conn.close()
+    return get_blueprint(blueprint_id)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Blueprint Milestones
+# ---------------------------------------------------------------------------
+
+def create_milestone(blueprint_id, title, description=None, target_date=None, sort_order=0):
+    conn = get_connection()
+    with conn:
+        cur = conn.execute(
+            """INSERT INTO blueprint_milestones (blueprint_id, title, description, target_date, sort_order)
+               VALUES (?, ?, ?, ?, ?)""",
+            (blueprint_id, title, description, target_date, sort_order),
+        )
+        ms_id = cur.lastrowid
+    conn.close()
+    return get_milestone(ms_id)
+
+
+def get_milestone(milestone_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM blueprint_milestones WHERE id = ?", (milestone_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_milestones(blueprint_id):
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM blueprint_milestones WHERE blueprint_id = ? ORDER BY sort_order",
+        (blueprint_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Blueprint Units
+# ---------------------------------------------------------------------------
+
+def create_blueprint_unit(blueprint_id, unit_number, title, description=None,
+                           milestone_id=None, estimated_minutes=None,
+                           difficulty=1.0, depends_on=None, metadata=None):
+    conn = get_connection()
+    with conn:
+        cur = conn.execute(
+            """INSERT INTO blueprint_units
+               (blueprint_id, milestone_id, title, description, unit_number,
+                estimated_minutes, difficulty, depends_on, metadata)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                blueprint_id, milestone_id, title, description, unit_number,
+                estimated_minutes, difficulty, depends_on,
+                json.dumps(metadata) if metadata and not isinstance(metadata, str) else metadata,
+            ),
+        )
+        unit_id = cur.lastrowid
+    conn.close()
+    return get_blueprint_unit(unit_id)
+
+
+def get_blueprint_unit(unit_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM blueprint_units WHERE id = ?", (unit_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_blueprint_units(blueprint_id, status_filter=None):
+    conn = get_connection()
+    if status_filter:
+        placeholders = ",".join("?" * len(status_filter))
+        rows = conn.execute(
+            f"""SELECT * FROM blueprint_units
+               WHERE blueprint_id = ? AND status IN ({placeholders})
+               ORDER BY unit_number""",
+            (blueprint_id, *status_filter),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM blueprint_units WHERE blueprint_id = ? ORDER BY unit_number",
+            (blueprint_id,),
+        ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_units_scheduled_today():
+    """Return all blueprint units scheduled for today that are not yet completed."""
+    today = date.today().isoformat()
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT u.*, b.goal_id, b.blueprint_type, b.unit_label,
+                  b.actual_pace_minutes, b.estimated_pace_minutes,
+                  g.title AS goal_title
+           FROM blueprint_units u
+           JOIN goal_blueprints b ON u.blueprint_id = b.id
+           JOIN goals g ON b.goal_id = g.id
+           WHERE u.scheduled_date = ? AND u.status IN ('pending', 'in_progress')
+             AND b.status = 'active'
+           ORDER BY u.blueprint_id, u.unit_number""",
+        (today,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def complete_blueprint_unit(unit_id, actual_minutes=None):
+    conn = get_connection()
+    unit_row = conn.execute(
+        "SELECT * FROM blueprint_units WHERE id = ?", (unit_id,)
+    ).fetchone()
+    if not unit_row:
+        conn.close()
+        return None
+    unit = dict(unit_row)
+
+    # Skip if already completed/skipped
+    if unit["status"] in ("completed", "skipped"):
+        conn.close()
+        return unit
+
+    now = datetime.utcnow().isoformat()
+    with conn:
+        conn.execute(
+            "UPDATE blueprint_units SET status='completed', completed_at=?, actual_minutes=? WHERE id=?",
+            (now, actual_minutes, unit_id),
+        )
+        conn.execute(
+            "UPDATE goal_blueprints SET completed_units=completed_units+1, updated_at=? WHERE id=?",
+            (now, unit["blueprint_id"]),
+        )
+        if actual_minutes is not None:
+            bp_row = conn.execute(
+                "SELECT actual_pace_minutes, pace_samples FROM goal_blueprints WHERE id=?",
+                (unit["blueprint_id"],),
+            ).fetchone()
+            if bp_row:
+                samples = bp_row["pace_samples"] or 0
+                old_pace = bp_row["actual_pace_minutes"]
+                if samples == 0 or old_pace is None:
+                    new_pace = float(actual_minutes)
+                else:
+                    new_pace = old_pace * 0.7 + actual_minutes * 0.3
+                conn.execute(
+                    "UPDATE goal_blueprints SET actual_pace_minutes=?, pace_samples=pace_samples+1 WHERE id=?",
+                    (new_pace, unit["blueprint_id"]),
+                )
+        # Auto-complete milestone if all its units are done
+        if unit.get("milestone_id"):
+            pending = conn.execute(
+                """SELECT COUNT(*) FROM blueprint_units
+                   WHERE milestone_id=? AND status NOT IN ('completed','skipped')""",
+                (unit["milestone_id"],),
+            ).fetchone()[0]
+            if pending == 0:
+                conn.execute(
+                    "UPDATE blueprint_milestones SET completed=1, completed_at=? WHERE id=?",
+                    (now, unit["milestone_id"]),
+                )
+
+    result = dict(
+        conn.execute("SELECT * FROM blueprint_units WHERE id=?", (unit_id,)).fetchone()
+    )
+    conn.close()
+    return result
+
+
+def skip_blueprint_unit(unit_id):
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            "UPDATE blueprint_units SET status='skipped' WHERE id=?",
+            (unit_id,),
+        )
+    result = dict(
+        conn.execute("SELECT * FROM blueprint_units WHERE id=?", (unit_id,)).fetchone()
+    )
+    conn.close()
+    return result
+
+
+def get_blueprint_schedule_status(blueprint_id):
+    """Return on_track / behind_N / ahead_N based on overdue pending units."""
+    today = date.today().isoformat()
+    conn = get_connection()
+    overdue = conn.execute(
+        """SELECT COUNT(*) FROM blueprint_units
+           WHERE blueprint_id=? AND status='pending' AND scheduled_date < ?""",
+        (blueprint_id, today),
+    ).fetchone()[0]
+    conn.close()
+    if overdue == 0:
+        return "on_track"
+    return f"behind_{overdue}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Habit Config
+# ---------------------------------------------------------------------------
+
+def create_habit_config(blueprint_id, frequency, progression_type="constant",
+                         base_quantity=None, current_quantity=None, target_quantity=None,
+                         quantity_unit=None, increment_amount=None,
+                         increment_frequency="weekly", custom_days=None):
+    conn = get_connection()
+    with conn:
+        cur = conn.execute(
+            """INSERT INTO habit_config
+               (blueprint_id, frequency, custom_days, progression_type, base_quantity,
+                current_quantity, target_quantity, quantity_unit, increment_amount,
+                increment_frequency)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                blueprint_id, frequency,
+                json.dumps(custom_days) if custom_days and not isinstance(custom_days, str) else custom_days,
+                progression_type, base_quantity,
+                current_quantity if current_quantity is not None else base_quantity,
+                target_quantity, quantity_unit, increment_amount, increment_frequency,
+            ),
+        )
+        hc_id = cur.lastrowid
+    conn.close()
+    return get_habit_config_by_id(hc_id)
+
+
+def get_habit_config_by_id(habit_config_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM habit_config WHERE id = ?", (habit_config_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_habit_config(blueprint_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM habit_config WHERE blueprint_id = ?", (blueprint_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_all_habits():
+    """Return all active habit configs with their blueprint and goal info."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT h.*, b.title AS blueprint_title, b.goal_id, b.status AS blueprint_status,
+                  g.title AS goal_title
+           FROM habit_config h
+           JOIN goal_blueprints b ON h.blueprint_id = b.id
+           JOIN goals g ON b.goal_id = g.id
+           WHERE b.status = 'active'
+           ORDER BY b.created_at""",
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_habit_quantity(habit_config_id, new_quantity):
+    conn = get_connection()
+    today = date.today().isoformat()
+    with conn:
+        conn.execute(
+            "UPDATE habit_config SET current_quantity=?, last_increment_date=? WHERE id=?",
+            (new_quantity, today, habit_config_id),
+        )
+    conn.close()
+    return get_habit_config_by_id(habit_config_id)
+
+
+def check_habit_progression():
+    """Increment current_quantity for progressive habits when due."""
+    from datetime import date as _date, timedelta
+    today = _date.today()
+    conn = get_connection()
+    habits = conn.execute(
+        """SELECT h.* FROM habit_config h
+           JOIN goal_blueprints b ON h.blueprint_id = b.id
+           WHERE h.progression_type = 'progressive' AND b.status = 'active'""",
+    ).fetchall()
+    updated = []
+    for h in habits:
+        h = dict(h)
+        if h["target_quantity"] is None:
+            continue
+        if h["current_quantity"] is not None and h["current_quantity"] >= h["target_quantity"]:
+            continue
+        last = h["last_increment_date"]
+        freq = h["increment_frequency"] or "weekly"
+        delta = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}.get(freq, 7)
+        if last is None or (_date.today() - _date.fromisoformat(last)).days >= delta:
+            inc = h["increment_amount"] or 0
+            new_qty = min((h["current_quantity"] or h["base_quantity"] or 0) + inc,
+                          h["target_quantity"])
+            with conn:
+                conn.execute(
+                    "UPDATE habit_config SET current_quantity=?, last_increment_date=? WHERE id=?",
+                    (new_qty, today.isoformat(), h["id"]),
+                )
+            updated.append(h["id"])
+    conn.close()
+    return updated
+
+
+def get_habit_streak(blueprint_id):
+    """Count consecutive completed units going backwards from the most recent scheduled one."""
+    conn = get_connection()
+    units = conn.execute(
+        """SELECT status FROM blueprint_units
+           WHERE blueprint_id=? AND scheduled_date IS NOT NULL
+           ORDER BY scheduled_date DESC""",
+        (blueprint_id,),
+    ).fetchall()
+    conn.close()
+    streak = 0
+    for u in units:
+        if u["status"] == "completed":
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def get_today_habit_unit(blueprint_id):
+    """Return today's pending/in_progress unit for a habit blueprint, falling back to most recent overdue."""
+    from datetime import date as _date
+    today = _date.today().isoformat()
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT * FROM blueprint_units
+           WHERE blueprint_id=? AND scheduled_date=? AND status IN ('pending','in_progress')
+           ORDER BY unit_number LIMIT 1""",
+        (blueprint_id, today),
+    ).fetchone()
+    if not row:
+        row = conn.execute(
+            """SELECT * FROM blueprint_units
+               WHERE blueprint_id=? AND scheduled_date < ? AND status IN ('pending','in_progress')
+               ORDER BY scheduled_date DESC LIMIT 1""",
+            (blueprint_id, today),
+        ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Career Pipeline
+# ---------------------------------------------------------------------------
+
+def create_pipeline_entry(blueprint_id, entry_type, title, company=None,
+                           status=None, url=None, notes=None,
+                           deadline=None, follow_up_date=None):
+    conn = get_connection()
+    with conn:
+        cur = conn.execute(
+            """INSERT INTO career_pipeline
+               (blueprint_id, entry_type, title, company, status, url, notes, deadline, follow_up_date)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (blueprint_id, entry_type, title, company, status, url, notes, deadline, follow_up_date),
+        )
+        entry_id = cur.lastrowid
+    conn.close()
+    return get_pipeline_entry(entry_id)
+
+
+def get_pipeline_entry(entry_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM career_pipeline WHERE id = ?", (entry_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_pipeline_entries(blueprint_id):
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM career_pipeline WHERE blueprint_id = ? ORDER BY created_at DESC",
+        (blueprint_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_pipeline_entry(entry_id, **fields):
+    allowed = {"entry_type", "title", "company", "status", "url", "notes", "deadline", "follow_up_date"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return get_pipeline_entry(entry_id)
+    updates["updated_at"] = datetime.utcnow().isoformat()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [entry_id]
+    conn = get_connection()
+    with conn:
+        conn.execute(f"UPDATE career_pipeline SET {set_clause} WHERE id = ?", values)
+    conn.close()
+    return get_pipeline_entry(entry_id)
+
+
+def get_pipeline_stats(blueprint_id):
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT entry_type, status, COUNT(*) AS cnt FROM career_pipeline WHERE blueprint_id=? GROUP BY entry_type, status",
+        (blueprint_id,),
+    ).fetchall()
+    conn.close()
+    stats = {"total_applications": 0, "interviews": 0, "offers": 0, "rejections": 0}
+    for r in rows:
+        r = dict(r)
+        if r["entry_type"] == "application":
+            stats["total_applications"] += r["cnt"]
+            if r["status"] == "interview":
+                stats["interviews"] += r["cnt"]
+            elif r["status"] == "offer":
+                stats["offers"] += r["cnt"]
+            elif r["status"] == "rejected":
+                stats["rejections"] += r["cnt"]
+    total = stats["total_applications"]
+    stats["rejection_rate"] = (
+        f"{round(stats['rejections'] / total * 100)}%" if total else "0%"
+    )
+    return stats

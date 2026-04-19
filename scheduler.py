@@ -105,6 +105,13 @@ def morning_routine():
         logger.error(f"morning_routine carry_forward error: {e}")
 
     try:
+        import database as db
+        db.check_habit_progression()
+        logger.info("morning_routine: habit progression checked.")
+    except Exception as e:
+        logger.error(f"morning_routine habit progression error: {e}")
+
+    try:
         import planner
         planner.generate_daily_plan()
         logger.info("morning_routine: daily plan generated.")

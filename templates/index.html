@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Jenax — Daily Planner</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/static/style.css" />
   <script id="tailwind-config">
@@ -14,169 +14,201 @@
       theme: {
         extend: {
           colors: {
-            "primary":                  "#44636f",
-            "primary-dim":              "#385763",
-            "primary-container":        "#c7e8f6",
-            "on-primary":               "#eff9ff",
-            "on-primary-container":     "#375662",
-            "secondary":                "#5b6063",
-            "on-secondary":             "#f5f9fd",
-            "secondary-container":      "#dfe3e7",
-            "on-secondary-container":   "#4d5256",
-            "tertiary":                 "#526077",
-            "on-tertiary":              "#f8f8ff",
-            "tertiary-container":       "#c7d5f1",
-            "on-tertiary-container":    "#3c4a60",
-            "surface":                  "#f7f9fb",
-            "surface-variant":          "#d9e4ea",
+            /* Clay swatch palette */
+            "primary":                  "#078a52",  /* Matcha 600 */
+            "primary-dim":              "#02492a",  /* Matcha 800 */
+            "primary-container":        "#84e7a5",  /* Matcha 300 */
+            "on-primary":               "#ffffff",
+            "on-primary-container":     "#02492a",
+            "secondary":                "#fbbd41",  /* Lemon 500 */
+            "on-secondary":             "#000000",
+            "secondary-container":      "#f8cc65",  /* Lemon 400 */
+            "on-secondary-container":   "#000000",
+            "tertiary":                 "#43089f",  /* Ube 800 */
+            "on-tertiary":              "#ffffff",
+            "tertiary-container":       "#c1b0ff",  /* Ube 300 */
+            "on-tertiary-container":    "#32037d",
+            /* Clay warm canvas */
+            "surface":                  "#faf9f7",  /* Warm Cream */
+            "surface-variant":          "#eee9df",  /* Oat Light */
             "surface-container-lowest": "#ffffff",
-            "surface-container-low":    "#f0f4f7",
-            "surface-container":        "#e8eff3",
-            "surface-container-high":   "#e1e9ee",
-            "surface-container-highest":"#d9e4ea",
-            "on-surface":               "#2a3439",
-            "on-surface-variant":       "#566166",
-            "background":               "#f7f9fb",
-            "on-background":            "#2a3439",
-            "outline":                  "#717c82",
-            "outline-variant":          "#a9b4b9",
-            "error":                    "#9f403d",
-            "error-container":          "#fe8983",
-            "on-error":                 "#fff7f6",
+            "surface-container-low":    "#f5f2ec",
+            "surface-container":        "#ede8df",
+            "surface-container-high":   "#e5dfd6",
+            "surface-container-highest":"#dad4c8",  /* Oat Border */
+            "on-surface":               "#000000",  /* Clay Black */
+            "on-surface-variant":       "#9f9b93",  /* Warm Silver */
+            "background":               "#faf9f7",
+            "on-background":            "#000000",
+            "outline":                  "#55534e",  /* Warm Charcoal */
+            "outline-variant":          "#dad4c8",  /* Oat Border */
+            "error":                    "#fc7981",  /* Pomegranate 400 */
+            "error-container":          "#fce7e9",
+            "on-error":                 "#000000",
           },
           fontFamily: {
-            "sans": ["Inter", "sans-serif"],
+            "sans": ["Plus Jakarta Sans", "Roobert", "Arial", "sans-serif"],
+            "mono": ["Space Mono", "monospace"],
           }
         },
       },
     }
   </script>
   <style>
-    body { font-family: 'Inter', sans-serif; }
+    /* ===== BASE ===== */
+    body { font-family: 'Plus Jakarta Sans', 'Roobert', Arial, sans-serif; }
+    code, pre, .mono { font-family: 'Space Mono', monospace; }
+
     .material-symbols-outlined {
       font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
     }
-    .signature-gradient {
-      background: linear-gradient(135deg, #44636f 0%, #385763 100%);
+
+    /* ===== CLAY DESIGN SYSTEM ===== */
+
+    /* Multi-layer clay shadow — pressed-into-clay quality */
+    .clay-shadow {
+      box-shadow: rgba(0,0,0,0.10) 0px 1px 1px,
+                  rgba(0,0,0,0.04) 0px -1px 1px inset,
+                  rgba(0,0,0,0.05) 0px -0.5px 1px;
     }
+
+    /* Warm cream navbar */
     .glass-overlay {
-      background: rgba(255, 255, 255, 0.88);
+      background: rgba(250, 249, 247, 0.92);
       backdrop-filter: blur(20px);
+      border-bottom: 1px solid #dad4c8;
     }
+
+    /* Clay CTA button — matcha solid with playful rotation hover */
+    .signature-gradient {
+      background-color: #078a52;
+      transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  box-shadow 0.18s ease,
+                  background-color 0.18s ease;
+    }
+    .signature-gradient:hover:not(:disabled) {
+      transform: rotateZ(-8deg) translateY(-4px);
+      box-shadow: rgb(0,0,0) -7px 7px;
+      background-color: #02492a;
+    }
+    .signature-gradient:disabled { opacity: 0.5; }
+
+    /* Scrollbar hide */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-    /* ===== DARK MODE ===== */
+    /* ===== DARK MODE — warm dark, Clay-consistent ===== */
     html.dark { color-scheme: dark; }
 
-    /* Base */
-    html.dark body { background-color: #0e0e0e; color: #e7e5e5; }
+    html.dark body { background-color: #0f0d0b; color: #f0ece6; }
 
-    /* Surface tokens */
+    /* Surface tokens — warm dark canvas */
     html.dark .bg-surface,
-    html.dark .bg-background           { background-color: #0e0e0e; }
-    html.dark .bg-surface-container-lowest { background-color: #111111; }
-    html.dark .bg-surface-container-low    { background-color: #131313; }
-    html.dark .bg-surface-container        { background-color: #191a1a; }
-    html.dark .bg-surface-container-high   { background-color: #1f2020; }
-    html.dark .bg-surface-container-highest{ background-color: #252626; }
-    html.dark .bg-surface-variant          { background-color: #252626; }
-    html.dark .bg-surface-bright           { background-color: #2b2c2c; }
+    html.dark .bg-background               { background-color: #0f0d0b; }
+    html.dark .bg-surface-container-lowest { background-color: #141210; }
+    html.dark .bg-surface-container-low    { background-color: #1a1714; }
+    html.dark .bg-surface-container        { background-color: #221f1c; }
+    html.dark .bg-surface-container-high   { background-color: #2a2622; }
+    html.dark .bg-surface-container-highest{ background-color: #32302b; }
+    html.dark .bg-surface-variant          { background-color: #32302b; }
 
-    /* Borders using surface tokens */
+    /* Borders — warm oat, dimmed */
+    html.dark .border-outline-variant,
     html.dark .border-outline-variant\/10,
     html.dark .border-outline-variant\/5,
     html.dark .border-outline-variant\/30,
-    html.dark .border-outline-variant\/20   { border-color: rgba(72,72,72,0.4); }
-    html.dark .divide-outline-variant\/5 > * + * { border-color: rgba(72,72,72,0.25); }
+    html.dark .border-outline-variant\/20,
+    html.dark .border-outline-variant\/50   { border-color: rgba(218,212,200,0.12); }
+    html.dark .divide-outline-variant\/5 > * + * { border-color: rgba(218,212,200,0.08); }
 
     /* Text tokens */
-    html.dark .text-on-surface          { color: #e7e5e5; }
-    html.dark .text-on-surface-variant  { color: #acabaa; }
-    html.dark .text-on-surface\/80      { color: rgba(231,229,229,0.8); }
-    html.dark .text-on-surface\/40      { color: rgba(231,229,229,0.4); }
-    html.dark .text-primary             { color: #b5cad4; }
-    html.dark .text-primary-dim         { color: #a8bcc6; }
-    html.dark .text-outline             { color: #767575; }
+    html.dark .text-on-surface          { color: #f0ece6; }
+    html.dark .text-on-surface-variant  { color: #9f9b93; }
+    html.dark .text-primary             { color: #84e7a5; }
+    html.dark .text-primary-dim         { color: #84e7a5; }
+    html.dark .text-outline             { color: #767168; }
 
-    /* Primary background (streak card, buttons) */
-    html.dark .bg-primary              { background-color: #374952; }
-    html.dark .text-on-primary         { color: #e7e5e5; }
-    html.dark .bg-primary-container    { background-color: #2e3d45; }
+    /* Primary surfaces */
+    html.dark .bg-primary              { background-color: #0e2b1c; }
+    html.dark .text-on-primary         { color: #f0ece6; }
+    html.dark .bg-primary-container    { background-color: #0a1f14; }
+    html.dark .bg-primary\/5           { background-color: rgba(132,231,165,0.06); }
+    html.dark .bg-primary\/8           { background-color: rgba(132,231,165,0.08); }
+    html.dark .bg-primary\/10          { background-color: rgba(132,231,165,0.10); }
+    html.dark .border-primary\/10      { border-color: rgba(132,231,165,0.10); }
+    html.dark .border-primary\/15      { border-color: rgba(132,231,165,0.15); }
 
-    /* Glass overlay (navbar) */
+    /* CTA button dark — keep matcha, warm hard shadow */
+    html.dark .signature-gradient                       { background-color: #078a52; }
+    html.dark .signature-gradient:hover:not(:disabled) { background-color: #078a52; box-shadow: rgba(240,236,230,0.85) -7px 7px; }
+
+    /* Warm dark navbar */
     html.dark .glass-overlay {
-      background: rgba(14,14,14,0.75);
+      background: rgba(15, 13, 11, 0.92);
       backdrop-filter: blur(20px);
+      border-bottom-color: rgba(218,212,200,0.12);
     }
 
-    /* Sidebar & hardcoded slate */
+    /* Sidebar dark */
     html.dark #sidebar {
-      background-color: #131313;
-      border-color: rgba(72,72,72,0.3);
+      background-color: #141210;
+      border-color: rgba(218,212,200,0.10);
     }
     html.dark .border-slate-200\/60,
-    html.dark .border-slate-200         { border-color: rgba(72,72,72,0.35); }
-    html.dark .bg-slate-50              { background-color: #131313; }
-    html.dark .text-slate-400           { color: #767575; }
-    html.dark .text-slate-500           { color: #9a9a9a; }
-    html.dark .text-slate-600           { color: #acabaa; }
+    html.dark .border-slate-200             { border-color: rgba(218,212,200,0.10); }
+    html.dark .bg-slate-50                  { background-color: #141210; }
+    html.dark .text-slate-400               { color: #767168; }
+    html.dark .text-slate-500               { color: #9f9b93; }
+    html.dark .text-slate-600               { color: #a09b93; }
     html.dark .text-slate-800,
-    html.dark .text-slate-900           { color: #e7e5e5; }
+    html.dark .text-slate-900               { color: #f0ece6; }
 
-    /* Inputs & white backgrounds */
-    html.dark .bg-white                 { background-color: #1f2020; }
+    /* Inputs + white card surfaces */
+    html.dark .bg-white                     { background-color: #221f1c; }
     html.dark input, html.dark textarea, html.dark select {
-      background-color: #1f2020;
-      color: #e7e5e5;
-      border-color: rgba(72,72,72,0.5);
+      background-color: #221f1c;
+      color: #f0ece6;
+      border-color: rgba(218,212,200,0.15);
     }
     html.dark input::placeholder,
-    html.dark textarea::placeholder     { color: #767575; }
+    html.dark textarea::placeholder         { color: #767168; }
 
     /* Mobile tab bar */
-    html.dark .md\:hidden.flex.border-b { background-color: #131313; border-color: rgba(72,72,72,0.35); }
+    html.dark .md\:hidden.flex.border-b    { background-color: #141210; border-color: rgba(218,212,200,0.10); }
 
     /* Notification banner */
-    html.dark #notif-banner             { background-color: rgba(53,73,82,0.2); border-color: rgba(181,202,212,0.15); }
+    html.dark #notif-banner                 { background-color: rgba(7,138,82,0.10); border-color: rgba(132,231,165,0.15); }
 
-    /* Carry-forward amber banner in dark */
-    html.dark #carry-banner             { background-color: rgba(120,80,0,0.25); border-color: rgba(217,119,6,0.25); }
-    html.dark #carry-banner span        { color: #fcd34d; }
-
-    /* Carried section label */
-    html.dark .bg-amber-50              { background-color: rgba(120,80,0,0.2); }
+    /* Carry-forward amber banner */
+    html.dark #carry-banner                 { background-color: rgba(120,80,0,0.25); border-color: rgba(217,119,6,0.25); }
+    html.dark #carry-banner span            { color: #fcd34d; }
+    html.dark .bg-amber-50                  { background-color: rgba(120,80,0,0.15); }
     html.dark .border-amber-100\/60,
-    html.dark .border-amber-200\/60     { border-color: rgba(217,119,6,0.2); }
-    html.dark .text-amber-600           { color: #f59e0b; }
-    html.dark .text-amber-800           { color: #fcd34d; }
+    html.dark .border-amber-200\/60         { border-color: rgba(217,119,6,0.15); }
+    html.dark .text-amber-600               { color: #f59e0b; }
+    html.dark .text-amber-800               { color: #fcd34d; }
 
-    /* Modal backdrop / overlay */
-    html.dark #modal-backdrop { background-color: rgba(0,0,0,0.7); }
-
-    /* Modal panel */
-    html.dark #modal-panel {
-      background-color: #191a1a;
-      border-color: rgba(72,72,72,0.4);
-    }
+    /* Modal backdrop */
+    html.dark #modal-backdrop               { background-color: rgba(0,0,0,0.75); }
 
     /* Insight card */
-    html.dark #insight-card             { background-color: rgba(53,73,82,0.2); border-color: rgba(181,202,212,0.1); }
+    html.dark #insight-card                 { background-color: rgba(7,138,82,0.08); border-color: rgba(132,231,165,0.10); }
 
-    /* Shadow overrides — too light on dark BG */
-    html.dark .shadow-\[0_8px_32px_0_rgba\(42\2c 52\2c 57\2c 0\.04\)\] {
-      box-shadow: 0 8px 32px 0 rgba(0,0,0,0.3);
+    /* Clay shadow dark — stronger, warm */
+    html.dark .clay-shadow {
+      box-shadow: rgba(0,0,0,0.55) 0px 1px 4px,
+                  rgba(0,0,0,0.20) 0px -1px 1px inset;
     }
 
-    /* Tab buttons in dark */
+    /* Tab buttons dark */
     html.dark #tab-btn-today,
-    html.dark #tab-btn-today-m          { color: #e7e5e5; border-color: #b5cad4; }
+    html.dark #tab-btn-today-m              { color: #f0ece6; border-color: #84e7a5; }
     html.dark #tab-btn-weekly,
-    html.dark #tab-btn-weekly-m         { color: rgba(231,229,229,0.5); }
+    html.dark #tab-btn-weekly-m             { color: rgba(240,236,230,0.5); }
     html.dark #tab-btn-weekly:hover,
-    html.dark #tab-btn-weekly-m:hover   { color: #e7e5e5; }
+    html.dark #tab-btn-weekly-m:hover       { color: #f0ece6; }
 
-    /* Dark mode toggle button */
+    /* Dark mode toggle */
     #dark-toggle { transition: opacity 0.2s; }
   </style>
 </head>
@@ -198,29 +230,29 @@
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/40 z-30" onclick="toggleSidebar()"></div>
 
 <!-- Navbar -->
-<nav class="fixed top-0 w-full z-50 glass-overlay shadow-sm shadow-slate-200/50 flex items-center justify-between px-6 h-16">
+<nav class="fixed top-0 w-full z-50 glass-overlay flex items-center justify-between px-6 h-16">
   <div class="flex items-center gap-4">
     <button id="hamburger-btn" class="md:hidden p-1" onclick="toggleSidebar()">
-      <span class="material-symbols-outlined text-slate-600">menu</span>
+      <span class="material-symbols-outlined text-outline">menu</span>
     </button>
-    <span class="text-lg font-semibold tracking-tighter text-slate-800">Jenax</span>
-    <span class="text-slate-400 text-sm hidden lg:block" id="nav-date"></span>
+    <span class="text-lg font-semibold tracking-tight text-on-surface" style="letter-spacing:-0.32px">Jenax</span>
+    <span class="text-outline text-xs hidden lg:block font-medium" id="nav-date"></span>
   </div>
   <!-- Desktop tab links -->
   <div class="hidden md:flex gap-x-8 items-center h-full">
     <button id="tab-btn-today" onclick="switchTab('today')"
-      class="tab-btn text-slate-900 font-medium border-b-2 border-slate-900 h-full flex items-center px-1 transition-colors duration-300 text-sm">
+      class="tab-btn text-on-surface font-semibold border-b-2 border-on-surface h-full flex items-center px-1 transition-colors duration-300 text-sm">
       Today
     </button>
     <button id="tab-btn-weekly" onclick="switchTab('weekly')"
-      class="tab-btn text-slate-500 hover:text-slate-800 border-b-2 border-transparent h-full flex items-center px-1 transition-colors duration-300 text-sm">
+      class="tab-btn text-outline hover:text-on-surface border-b-2 border-transparent h-full flex items-center px-1 transition-colors duration-300 text-sm">
       Weekly Review
     </button>
   </div>
   <!-- Right actions -->
   <div class="hidden md:flex items-center gap-3 w-24 justify-end">
     <button id="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode"
-      class="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors">
+      class="p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors">
       <span id="dark-toggle-icon" class="material-symbols-outlined text-[20px]">dark_mode</span>
     </button>
   </div>
@@ -230,31 +262,31 @@
 <div class="flex min-h-screen">
 
   <!-- Sidebar -->
-  <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 pt-16 border-r border-slate-200/60 bg-slate-50 flex flex-col z-20">
+  <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 pt-16 border-r border-outline-variant bg-surface flex flex-col z-20">
     <!-- Workspace header -->
-    <div class="px-4 py-5 border-b border-slate-200/60 flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+    <div class="px-4 py-5 border-b border-outline-variant flex items-center gap-3">
+      <div class="w-9 h-9 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0">
         <span class="material-symbols-outlined text-white text-[18px]">target</span>
       </div>
       <div>
         <div class="text-sm font-semibold text-on-surface">Goals</div>
-        <div class="text-[10px] uppercase tracking-widest font-medium text-slate-400">Your workspace</div>
+        <div class="text-[10px] uppercase tracking-[0.12em] font-semibold text-outline">Your workspace</div>
       </div>
     </div>
     <!-- Goal tree -->
     <div id="goal-tree" class="p-3 flex-1 overflow-y-auto no-scrollbar">
-      <p class="text-slate-400 text-sm italic px-2">Loading goals…</p>
+      <p class="text-outline text-sm italic px-2">Loading goals…</p>
     </div>
     <!-- Add Goal CTA -->
-    <div class="p-4 border-t border-slate-200/60">
+    <div class="p-4 border-t border-outline-variant">
       <button onclick="openGoalModal()"
-        class="w-full signature-gradient text-white rounded-xl py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-medium shadow-md shadow-primary/20 hover:scale-[1.02] transition-transform">
+        class="w-full signature-gradient text-white rounded-2xl py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-semibold">
         <span class="material-symbols-outlined text-[18px]">add</span>
         Add Goal
       </button>
     </div>
     <!-- Connections -->
-    <div class="px-4 py-3 border-t border-slate-200/60">
+    <div class="px-4 py-3 border-t border-outline-variant">
       <div class="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Connections</div>
       <div id="gmail-sidebar" class="flex flex-col gap-1.5 mb-3">
         <!-- Populated by JS -->
@@ -264,7 +296,7 @@
       </div>
     </div>
     <!-- Automation -->
-    <div class="px-4 py-3 border-t border-slate-200/60">
+    <div class="px-4 py-3 border-t border-outline-variant">
       <div class="flex items-center justify-between mb-2">
         <div class="text-[10px] font-bold text-outline uppercase tracking-widest">Automation</div>
         <button onclick="openAutomationModal()" class="text-[10px] text-primary hover:text-primary-dim font-semibold transition-colors">Edit</button>
@@ -274,7 +306,7 @@
       </div>
     </div>
     <!-- Agents -->
-    <div class="px-4 py-3 border-t border-slate-200/60">
+    <div class="px-4 py-3 border-t border-outline-variant">
       <div class="flex items-center justify-between mb-2">
         <div class="text-[10px] font-bold text-outline uppercase tracking-widest">Agents</div>
         <button onclick="openAgentLogsModal()" class="text-[10px] text-primary hover:text-primary-dim font-semibold transition-colors">Logs</button>
@@ -289,13 +321,13 @@
   <main class="flex-1 ml-64 pt-16 min-h-screen">
 
     <!-- Mobile tab bar -->
-    <div class="md:hidden flex border-b border-slate-200/60 bg-white sticky top-16 z-10">
+    <div class="md:hidden flex border-b border-outline-variant bg-surface sticky top-16 z-10">
       <button id="tab-btn-today-m" onclick="switchTab('today')"
-        class="flex-1 py-2.5 text-sm font-medium text-primary border-b-2 border-primary">
+        class="flex-1 py-2.5 text-sm font-semibold text-primary border-b-2 border-primary">
         Today
       </button>
       <button id="tab-btn-weekly-m" onclick="switchTab('weekly')"
-        class="flex-1 py-2.5 text-sm font-medium text-outline border-b-2 border-transparent">
+        class="flex-1 py-2.5 text-sm font-semibold text-outline border-b-2 border-transparent">
         Weekly Review
       </button>
     </div>
@@ -311,7 +343,7 @@
         <div id="accountability-alerts" class="hidden flex flex-col gap-2"></div>
 
         <!-- Daily Insight card -->
-        <div id="insight-card" class="hidden bg-primary/5 rounded-xl border border-primary/10 p-6">
+        <div id="insight-card" class="hidden bg-primary/5 rounded-3xl border border-primary/10 p-6">
           <div class="flex items-center justify-between mb-2">
             <div class="text-[10px] font-bold text-primary uppercase tracking-[0.2em]">Daily Insight</div>
             <div class="flex items-center gap-2">
@@ -327,7 +359,7 @@
         </div>
 
         <!-- Email Digest section (only shown when Gmail connected) -->
-        <div id="email-digest-section" class="hidden bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+        <div id="email-digest-section" class="hidden bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant overflow-hidden">
           <div class="px-6 py-4 border-b border-outline-variant/5 flex items-center justify-between">
             <h2 class="text-sm font-semibold tracking-tight text-on-surface flex items-center gap-2">
               <span class="material-symbols-outlined text-[18px] text-primary">mail</span>
@@ -336,11 +368,11 @@
             <div class="flex items-center gap-2">
               <button id="email-rescan-btn" onclick="scanEmails()" class="hidden text-[10px] uppercase tracking-widest font-bold text-outline hover:text-on-surface transition-colors">Rescan</button>
               <button id="email-scan-btn" onclick="scanEmails()"
-                class="signature-gradient text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-sm shadow-primary/20 hover:scale-[1.02] transition-transform flex items-center gap-1.5">
+                class="signature-gradient text-white text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-[14px]">refresh</span>
                 Scan Emails
               </button>
-              <span id="email-scan-status" class="hidden text-sm text-slate-500">
+              <span id="email-scan-status" class="hidden text-sm text-outline">
                 <svg class="w-4 h-4 inline animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"></path>
@@ -369,7 +401,7 @@
         </div>
 
         <!-- Learning Corner (only if Research Agent returned data) -->
-        <div id="learning-corner" class="hidden bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+        <div id="learning-corner" class="hidden bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant overflow-hidden">
           <div class="px-6 py-4 border-b border-outline-variant/5 flex items-center justify-between">
             <h2 class="text-sm font-semibold tracking-tight text-on-surface flex items-center gap-2">
               <span class="material-symbols-outlined text-[18px] text-primary">menu_book</span>
@@ -381,7 +413,7 @@
         </div>
 
         <!-- Carry-forward banner -->
-        <div id="carry-banner" class="hidden bg-amber-50 border border-amber-200/60 rounded-xl px-5 py-4 flex items-center justify-between gap-3">
+        <div id="carry-banner" class="hidden bg-amber-50 border border-amber-200/60 rounded-3xl px-5 py-4 flex items-center justify-between gap-3">
           <div class="flex items-center gap-3">
             <span class="material-symbols-outlined text-amber-500">history</span>
             <span id="carry-banner-text" class="text-sm text-amber-800 font-medium"></span>
@@ -398,11 +430,11 @@
         <!-- Generate button -->
         <div class="flex items-center gap-3">
           <button id="generate-btn" onclick="generatePlan()"
-            class="signature-gradient text-white font-medium px-5 py-2.5 rounded-xl shadow-md shadow-primary/20 hover:scale-[1.02] transition-transform flex items-center gap-2 text-sm">
+            class="signature-gradient text-white font-semibold px-5 py-2.5 rounded-2xl flex items-center gap-2 text-sm">
             <span class="material-symbols-outlined text-[18px]">auto_awesome</span>
             Generate Today's Plan
           </button>
-          <span id="generate-status" class="text-sm text-slate-500 hidden">
+          <span id="generate-status" class="text-sm text-outline hidden">
             <svg class="w-4 h-4 inline animate-spin mr-1" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"></path>
@@ -413,7 +445,7 @@
         </div>
 
         <!-- Task list -->
-        <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+        <div class="bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant overflow-hidden">
           <div class="px-6 py-4 border-b border-outline-variant/5 flex items-center justify-between">
             <h2 class="text-sm font-semibold tracking-tight text-on-surface">Today's Tasks</h2>
             <button onclick="showAddTaskForm()" class="text-[10px] uppercase tracking-widest font-bold text-primary hover:text-primary-dim transition-colors">+ Add Task</button>
@@ -423,17 +455,17 @@
           <div id="add-task-form" class="hidden px-6 py-4 border-b border-outline-variant/5 bg-surface-container-low/40">
             <div class="flex flex-col gap-2.5">
               <input id="new-task-title" type="text" placeholder="Task title…"
-                class="border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white" />
+                class="border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white" />
               <div class="flex gap-2">
-                <select id="new-task-priority" class="border border-outline-variant/30 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
+                <select id="new-task-priority" class="border border-outline-variant rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
                   <option value="high">High</option>
                   <option value="medium" selected>Medium</option>
                   <option value="low">Low</option>
                 </select>
-                <select id="new-task-goal" class="border border-outline-variant/30 rounded-xl px-3 py-1.5 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
+                <select id="new-task-goal" class="border border-outline-variant rounded-lg px-3 py-1.5 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
                   <option value="">No goal</option>
                 </select>
-                <button onclick="submitAddTask()" class="signature-gradient text-white px-4 py-1.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">Add</button>
+                <button onclick="submitAddTask()" class="signature-gradient text-white px-4 py-1.5 rounded-xl text-sm font-semibold">Add</button>
                 <button onclick="hideAddTaskForm()" class="text-outline hover:text-on-surface px-2 py-1.5 text-sm transition-colors">Cancel</button>
               </div>
             </div>
@@ -456,7 +488,7 @@
         </div>
 
         <!-- End-of-Day Review section -->
-        <div id="eod-section" class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+        <div id="eod-section" class="bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant overflow-hidden">
           <div class="px-6 py-4 border-b border-outline-variant/5 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <h2 class="text-sm font-semibold tracking-tight text-on-surface">End of Day Review</h2>
@@ -478,17 +510,17 @@
               </div>
             </div>
             <div>
-              <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">Notes <span class="font-normal normal-case tracking-normal text-xs text-slate-400">(optional)</span></label>
+              <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">Notes <span class="font-normal normal-case tracking-normal text-xs text-outline">(optional)</span></label>
               <textarea id="review-notes" rows="2" placeholder="What happened, what got in the way…"
-                class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white resize-none"></textarea>
+                class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white resize-none"></textarea>
             </div>
             <div class="flex items-center gap-3">
               <button onclick="submitDailyReview()" id="review-btn"
-                class="signature-gradient text-white font-medium px-5 py-2.5 rounded-xl text-sm shadow-md shadow-primary/20 hover:scale-[1.02] transition-transform flex items-center gap-2">
+                class="signature-gradient text-white font-semibold px-5 py-2.5 rounded-2xl text-sm flex items-center gap-2">
                 <span class="material-symbols-outlined text-[18px]">rate_review</span>
                 Review My Day
               </button>
-              <span id="review-status" class="text-sm text-slate-500 hidden">
+              <span id="review-status" class="text-sm text-outline hidden">
                 <svg class="w-4 h-4 inline animate-spin mr-1" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"></path>
@@ -515,7 +547,7 @@
         </div>
 
         <!-- Progress section -->
-        <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 overflow-hidden">
+        <div class="bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant overflow-hidden">
           <div class="px-6 py-4 border-b border-outline-variant/5">
             <span class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary">Progress</span>
           </div>
@@ -551,7 +583,7 @@
       <div id="tab-weekly" class="hidden flex flex-col gap-6">
 
         <!-- Week selector -->
-        <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 px-6 py-4 flex items-center justify-between">
+        <div class="bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant px-6 py-4 flex items-center justify-between">
           <button onclick="prevWeek()" class="text-outline hover:text-on-surface text-xl px-2 transition-colors">‹</button>
           <span id="week-label" class="font-semibold text-on-surface text-sm tracking-tight"></span>
           <button onclick="nextWeek()" class="text-outline hover:text-on-surface text-xl px-2 transition-colors">›</button>
@@ -560,12 +592,12 @@
         <!-- Actions -->
         <div class="flex items-center gap-3">
           <button id="weekly-generate-btn" onclick="generateWeeklyReview()"
-            class="signature-gradient text-white font-medium px-5 py-2.5 rounded-xl shadow-md shadow-primary/20 hover:scale-[1.02] transition-transform flex items-center gap-2 text-sm">
+            class="signature-gradient text-white font-semibold px-5 py-2.5 rounded-2xl flex items-center gap-2 text-sm">
             <span class="material-symbols-outlined text-[18px]">calendar_view_week</span>
             Generate Weekly Review
           </button>
           <button id="weekly-redo-btn" class="hidden text-[10px] uppercase tracking-widest font-bold text-outline hover:text-on-surface transition-colors" onclick="generateWeeklyReview()">Regenerate</button>
-          <span id="weekly-status" class="text-sm text-slate-500 hidden">
+          <span id="weekly-status" class="text-sm text-outline hidden">
             <svg class="w-4 h-4 inline animate-spin mr-1" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"></path>
@@ -578,7 +610,7 @@
         <!-- Weekly review card -->
         <div id="weekly-review-card" class="hidden flex flex-col gap-5">
 
-          <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-6">
+          <div class="bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant p-6">
             <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-3">Week Summary</div>
             <p id="wr-summary" class="text-on-surface text-sm leading-relaxed"></p>
             <div class="mt-4">
@@ -587,27 +619,27 @@
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-6">
+            <div class="bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant p-6">
               <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-emerald-600 mb-3">Wins</div>
               <ul id="wr-wins" class="flex flex-col gap-2"></ul>
             </div>
-            <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-6">
+            <div class="bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant p-6">
               <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-amber-600 mb-3">Concerns</div>
               <ul id="wr-concerns" class="flex flex-col gap-2"></ul>
             </div>
           </div>
 
-          <div id="wr-patterns-box" class="hidden bg-primary/5 border border-primary/10 rounded-xl p-6">
+          <div id="wr-patterns-box" class="hidden bg-primary/5 border border-primary/10 rounded-3xl p-6">
             <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-2">Patterns</div>
             <p id="wr-patterns" class="text-on-surface text-sm leading-relaxed"></p>
           </div>
 
-          <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-6">
+          <div class="bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant p-6">
             <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-4">Next Week's Focus</div>
             <div id="wr-focus" class="flex flex-col gap-2.5"></div>
           </div>
 
-          <div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-6">
+          <div class="bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant p-6">
             <div class="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-4">Daily Completion</div>
             <div id="week-heatmap" class="flex gap-2"></div>
           </div>
@@ -615,7 +647,7 @@
         </div>
 
         <!-- Empty state -->
-        <div id="weekly-empty" class="bg-surface-container-lowest rounded-xl shadow-[0_8px_32px_0_rgba(42,52,57,0.04)] border border-outline-variant/10 p-10 text-center text-outline text-sm italic">
+        <div id="weekly-empty" class="bg-surface-container-lowest rounded-3xl clay-shadow border border-outline-variant p-10 text-center text-outline text-sm italic">
           No review for this week yet. Click "Generate Weekly Review" to create one.
         </div>
 
@@ -628,7 +660,7 @@
 <!-- Goal Modal -->
 <!-- Privacy Notice Modal -->
 <div id="email-privacy-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md clay-shadow" onclick="event.stopPropagation()">
     <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-2">
       <span class="material-symbols-outlined text-primary text-[20px]">mail</span>
       <h3 class="font-semibold text-on-surface">Email Processing Notice</h3>
@@ -644,11 +676,11 @@
     </div>
     <div class="px-6 pb-6 flex gap-2">
       <button onclick="acceptPrivacyNotice()"
-        class="flex-1 signature-gradient text-white font-medium py-2.5 rounded-xl text-sm shadow-md shadow-primary/20 hover:opacity-90 transition-opacity">
+        class="flex-1 signature-gradient text-white font-semibold py-2.5 rounded-2xl text-sm">
         I Understand, Continue
       </button>
       <button onclick="document.getElementById('email-privacy-modal').classList.add('hidden')"
-        class="px-4 py-2.5 rounded-xl text-sm text-outline hover:text-on-surface border border-outline-variant/30 transition-colors">
+        class="px-4 py-2.5 rounded-2xl text-sm text-outline hover:text-on-surface border border-outline-variant transition-colors">
         Cancel
       </button>
     </div>
@@ -657,7 +689,7 @@
 
 <!-- Automation Settings Modal -->
 <div id="automation-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md clay-shadow" onclick="event.stopPropagation()">
     <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
       <h3 class="font-semibold text-on-surface flex items-center gap-2">
         <span class="material-symbols-outlined text-primary text-[18px]">schedule</span>
@@ -677,7 +709,7 @@
           </label>
           <span class="text-xs text-on-surface-variant">at</span>
           <input id="am-time" type="time" value="07:00"
-            class="border border-outline-variant/30 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            class="border border-outline-variant rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
         <p class="text-[11px] text-outline mt-1">Automatically generate your daily plan</p>
       </div>
@@ -692,7 +724,7 @@
           </label>
           <span class="text-xs text-on-surface-variant">at</span>
           <input id="pm-time" type="time" value="21:00"
-            class="border border-outline-variant/30 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            class="border border-outline-variant rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
         <p class="text-[11px] text-outline mt-1">Reminder to review your day</p>
       </div>
@@ -713,18 +745,18 @@
       <div>
         <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Timezone</label>
         <input id="tz-input" type="text" value="UTC" placeholder="e.g. Asia/Kolkata"
-          class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         <p id="tz-error" class="hidden text-[11px] text-error mt-1"></p>
       </div>
 
     </div>
     <div class="px-6 pb-6 flex gap-2">
       <button onclick="saveAutomationSettings()"
-        class="flex-1 signature-gradient text-white font-medium py-2.5 rounded-xl text-sm shadow-md shadow-primary/20 hover:opacity-90 transition-opacity">
+        class="flex-1 signature-gradient text-white font-semibold py-2.5 rounded-2xl text-sm">
         Save
       </button>
       <button onclick="closeAutomationModal()"
-        class="px-4 py-2.5 rounded-xl text-sm text-outline hover:text-on-surface border border-outline-variant/30 transition-colors">
+        class="px-4 py-2.5 rounded-2xl text-sm text-outline hover:text-on-surface border border-outline-variant transition-colors">
         Cancel
       </button>
     </div>
@@ -732,7 +764,7 @@
 </div>
 
 <div id="modal-backdrop" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md clay-shadow" onclick="event.stopPropagation()">
     <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
       <h3 id="modal-title" class="font-semibold text-on-surface">Add Goal</h3>
       <button onclick="closeModal()" class="text-outline hover:text-on-surface text-xl leading-none">&times;</button>
@@ -742,18 +774,18 @@
       <div>
         <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Title *</label>
         <input id="modal-title-input" type="text" placeholder="Goal title…"
-          class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
       </div>
       <div>
         <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Description</label>
         <textarea id="modal-desc" rows="2" placeholder="Optional description…"
-          class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"></textarea>
+          class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"></textarea>
       </div>
       <div class="flex gap-3">
         <div class="flex-1">
           <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Level *</label>
           <select id="modal-level" onchange="updateParentDropdown()"
-            class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+            class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             <option value="yearly">Yearly</option>
             <option value="monthly">Monthly</option>
             <option value="weekly">Weekly</option>
@@ -762,20 +794,20 @@
         <div class="flex-1">
           <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Deadline</label>
           <input id="modal-deadline" type="date"
-            class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
       </div>
       <div id="modal-parent-wrap">
         <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Parent Goal</label>
         <select id="modal-parent"
-          class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+          class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
           <option value="">None</option>
         </select>
       </div>
       <div id="modal-status-wrap" class="hidden">
         <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Status</label>
         <select id="modal-status"
-          class="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+          class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
           <option value="active">Active</option>
           <option value="completed">Completed</option>
           <option value="paused">Paused</option>
@@ -785,16 +817,215 @@
     </div>
     <div class="px-6 pb-6 flex gap-2">
       <button id="modal-save-btn" onclick="saveGoal()"
-        class="flex-1 signature-gradient text-white font-medium py-2.5 rounded-xl text-sm shadow-md shadow-primary/20 hover:opacity-90 transition-opacity">Save</button>
+        class="flex-1 signature-gradient text-white font-semibold py-2.5 rounded-2xl text-sm">Save</button>
+      <button id="modal-smart-plan-btn" onclick="openWizardFromGoalModal()"
+        class="hidden bg-primary/5 hover:bg-primary/10 text-primary font-medium py-2.5 px-4 rounded-xl text-sm transition-colors">✦ Smart Plan</button>
       <button id="modal-delete-btn" onclick="deleteGoalFromModal()"
         class="hidden bg-error/5 hover:bg-error/10 text-error font-medium py-2.5 px-4 rounded-xl text-sm transition-colors">Delete</button>
     </div>
   </div>
 </div>
 
+<!-- Smart Plan Wizard Modal -->
+<div id="wizard-backdrop" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col clay-shadow" onclick="event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between flex-shrink-0">
+      <div>
+        <h3 id="wizard-title" class="font-semibold text-on-surface">Smart Goal Setup</h3>
+        <div id="wizard-step-label" class="text-xs text-outline mt-0.5">Step 1 of 4</div>
+      </div>
+      <button onclick="closeWizard()" class="text-outline hover:text-on-surface text-xl leading-none">&times;</button>
+    </div>
+
+    <!-- Step Container -->
+    <div class="flex-1 overflow-y-auto">
+
+      <!-- Step 1: Type Selection -->
+      <div id="wz-step-1" class="p-6">
+        <p class="text-sm text-outline mb-5">What kind of goal is this?</p>
+        <div class="grid grid-cols-3 gap-4">
+          <button onclick="wizardSelectType('learning')"
+            class="wizard-type-card flex flex-col items-center gap-2 p-5 rounded-2xl border-2 border-outline-variant/20 hover:border-primary hover:bg-primary/5 transition-all text-center cursor-pointer">
+            <span class="text-3xl">📚</span>
+            <span class="font-semibold text-sm text-on-surface">Learning</span>
+            <span class="text-xs text-outline">Books, courses, tutorials</span>
+          </button>
+          <button onclick="wizardSelectType('career')"
+            class="wizard-type-card flex flex-col items-center gap-2 p-5 rounded-2xl border-2 border-outline-variant/20 hover:border-primary hover:bg-primary/5 transition-all text-center cursor-pointer">
+            <span class="text-3xl">💼</span>
+            <span class="font-semibold text-sm text-on-surface">Career</span>
+            <span class="text-xs text-outline">Job hunt, portfolio, resume</span>
+          </button>
+          <button onclick="wizardSelectType('habit')"
+            class="wizard-type-card flex flex-col items-center gap-2 p-5 rounded-2xl border-2 border-outline-variant/20 hover:border-primary hover:bg-primary/5 transition-all text-center cursor-pointer">
+            <span class="text-3xl">🔄</span>
+            <span class="font-semibold text-sm text-on-surface">Habit</span>
+            <span class="text-xs text-outline">Exercise, reading, practice</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Details Form (rendered dynamically) -->
+      <div id="wz-step-2" class="hidden p-6">
+        <div id="wz-details-form"></div>
+        <div class="flex gap-2 mt-6">
+          <button id="wz-research-btn" onclick="wizardStartResearch()"
+            class="flex-1 signature-gradient text-white font-semibold py-2.5 rounded-2xl text-sm">
+            🔍 Research &amp; Build Plan
+          </button>
+          <button onclick="wizardGoStep(1)"
+            class="px-4 py-2.5 rounded-2xl text-sm border border-outline-variant text-outline hover:text-on-surface hover:bg-surface-container transition-colors">
+            ← Back
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: Loading / Research -->
+      <div id="wz-step-3" class="hidden p-6 flex flex-col items-center justify-center min-h-[260px] text-center">
+        <div class="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin mb-5"></div>
+        <div id="wz-loading-msg" class="font-medium text-on-surface mb-1">Researching…</div>
+        <div class="text-sm text-outline">This takes about 10–20 seconds</div>
+        <div id="wz-error-box" class="hidden mt-5 w-full bg-error/5 border border-error/20 rounded-xl p-4 text-sm text-error text-left">
+          <div class="font-medium mb-1">Research failed</div>
+          <div id="wz-error-msg"></div>
+          <button onclick="wizardGoStep(2)"
+            class="mt-3 px-4 py-2 rounded-lg border border-error/30 text-error text-xs hover:bg-error/5 transition-colors">
+            ← Edit Details
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 4: Review & Confirm -->
+      <div id="wz-step-4" class="hidden p-6">
+
+        <!-- Summary card -->
+        <div class="bg-primary/5 rounded-xl p-4 mb-4">
+          <div id="wz-review-title" class="font-semibold text-on-surface"></div>
+          <div id="wz-review-meta" class="text-xs text-outline mt-1 flex flex-wrap gap-3"></div>
+        </div>
+
+        <!-- Low confidence warning -->
+        <div id="wz-confidence-warn" class="hidden bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 text-sm text-yellow-800">
+          ⚠️ The AI couldn't find all details with high confidence. Please review and edit the structure below.
+        </div>
+
+        <!-- Market assessment (career only) -->
+        <div id="wz-market-note" class="hidden bg-surface-container-low rounded-xl p-3 mb-4 text-xs text-on-surface-variant italic"></div>
+
+        <!-- Habit summary (habit only) -->
+        <div id="wz-habit-summary" class="hidden space-y-2 mb-4 text-sm"></div>
+
+        <!-- Milestones + units table -->
+        <div id="wz-review-milestones" class="space-y-3"></div>
+
+        <!-- Add unit row (learning/career) -->
+        <button id="wz-add-unit-btn" onclick="wizardAddUnit()"
+          class="hidden mt-2 w-full py-2 text-xs text-primary border border-dashed border-primary/30 rounded-xl hover:bg-primary/5 transition-colors">
+          + Add unit
+        </button>
+
+        <div class="flex gap-2 mt-5">
+          <button onclick="wizardConfirm()"
+            class="flex-1 signature-gradient text-white font-semibold py-2.5 rounded-2xl text-sm">
+            ✓ Activate plan
+          </button>
+          <button onclick="wizardGoStep(wizardType === 'habit' ? 2 : 3)"
+            class="px-4 py-2.5 rounded-2xl text-sm border border-outline-variant text-outline hover:text-on-surface hover:bg-surface-container transition-colors">
+            ← Back
+          </button>
+          <button onclick="closeWizard()"
+            class="px-4 py-2.5 rounded-2xl text-sm border border-outline-variant text-outline hover:text-on-surface hover:bg-surface-container transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /Step Container -->
+  </div>
+</div>
+
+<!-- Blueprint Detail Modal -->
+<div id="blueprint-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onclick="closeBlueprintDetail()">
+  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col clay-shadow" onclick="event.stopPropagation()">
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between flex-shrink-0">
+      <h3 id="bp-modal-title" class="font-semibold text-on-surface text-base"></h3>
+      <div class="flex items-center gap-3">
+        <button id="bp-reschedule-btn" onclick="rescheduleBlueprintFromModal()" class="hidden text-xs text-primary border border-primary/30 rounded-lg px-3 py-1 hover:bg-primary/5 transition-colors">↺ Reschedule</button>
+        <button onclick="closeBlueprintDetail()" class="text-outline hover:text-on-surface text-xl leading-none">&times;</button>
+      </div>
+    </div>
+    <div id="bp-modal-body" class="overflow-y-auto flex-1 p-5 text-sm"></div>
+  </div>
+</div>
+
+<!-- Pipeline Entry Modal -->
+<div id="pipeline-entry-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onclick="closePipelineModal()">
+  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg clay-shadow" onclick="event.stopPropagation()">
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
+      <h3 class="font-semibold text-on-surface">Log Career Entry</h3>
+      <button onclick="closePipelineModal()" class="text-outline hover:text-on-surface text-xl leading-none">&times;</button>
+    </div>
+    <form id="pipeline-entry-form" class="p-5 flex flex-col gap-3 text-sm">
+      <input type="hidden" id="pe-blueprint-id" />
+      <input type="hidden" id="pe-entry-id" />
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[10px] uppercase tracking-widest font-bold text-outline block mb-1">Type</label>
+          <select id="pe-type" onchange="onPipelineTypeChange()" class="w-full border border-outline-variant/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30">
+            <option value="application">Application</option>
+            <option value="interview">Interview</option>
+            <option value="portfolio_piece">Portfolio Piece</option>
+            <option value="networking">Networking</option>
+            <option value="skill_gap">Skill Gap</option>
+          </select>
+        </div>
+        <div id="pe-status-wrap">
+          <label class="text-[10px] uppercase tracking-widest font-bold text-outline block mb-1">Status</label>
+          <select id="pe-status" class="w-full border border-outline-variant/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30">
+            <option value="applied">Applied</option>
+            <option value="screening">Screening</option>
+            <option value="interview">Interview</option>
+            <option value="offer">Offer</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-widest font-bold text-outline block mb-1">Title</label>
+        <input id="pe-title" type="text" placeholder="e.g. Applied to Acme Corp — Junior SWE" class="w-full border border-outline-variant/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30" />
+      </div>
+      <div id="pe-company-wrap">
+        <label class="text-[10px] uppercase tracking-widest font-bold text-outline block mb-1">Company</label>
+        <input id="pe-company" type="text" placeholder="Company name" class="w-full border border-outline-variant/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[10px] uppercase tracking-widest font-bold text-outline block mb-1">Deadline</label>
+          <input id="pe-deadline" type="date" class="w-full border border-outline-variant/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30" />
+        </div>
+        <div>
+          <label class="text-[10px] uppercase tracking-widest font-bold text-outline block mb-1">Follow-up Date</label>
+          <input id="pe-followup" type="date" class="w-full border border-outline-variant/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30" />
+        </div>
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-widest font-bold text-outline block mb-1">URL</label>
+        <input id="pe-url" type="url" placeholder="Job posting or portfolio link" class="w-full border border-outline-variant/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30" />
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-widest font-bold text-outline block mb-1">Notes</label>
+        <textarea id="pe-notes" rows="2" placeholder="Any notes..." class="w-full border border-outline-variant/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"></textarea>
+      </div>
+      <button type="button" onclick="savePipelineEntry()" class="signature-gradient text-white font-semibold rounded-2xl px-4 py-2.5">Save Entry</button>
+    </form>
+  </div>
+</div>
+
 <!-- Agent Logs Modal -->
 <div id="agent-logs-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onclick="event.stopPropagation()">
+  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col clay-shadow" onclick="event.stopPropagation()">
     <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between flex-shrink-0">
       <h3 class="font-semibold text-on-surface flex items-center gap-2">
         <span class="material-symbols-outlined text-primary text-[18px]">smart_toy</span>
@@ -817,7 +1048,7 @@
 
 <!-- Learning Resources Modal -->
 <div id="resources-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col clay-shadow" onclick="event.stopPropagation()">
     <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between flex-shrink-0">
       <h3 class="font-semibold text-on-surface flex items-center gap-2">
         <span class="material-symbols-outlined text-primary text-[18px]">menu_book</span>
@@ -835,15 +1066,15 @@
       <div class="grid grid-cols-2 gap-3">
         <div class="col-span-2">
           <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Title *</label>
-          <input id="res-title" type="text" placeholder="Resource title…" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          <input id="res-title" type="text" placeholder="Resource title…" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
         <div>
           <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Author</label>
-          <input id="res-author" type="text" placeholder="Author…" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          <input id="res-author" type="text" placeholder="Author…" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
         <div>
           <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Type</label>
-          <select id="res-type" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+          <select id="res-type" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             <option value="book">Book</option>
             <option value="course">Course</option>
             <option value="tutorial">Tutorial</option>
@@ -854,11 +1085,11 @@
         </div>
         <div>
           <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Total units</label>
-          <input id="res-total" type="number" min="1" placeholder="e.g. 12" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          <input id="res-total" type="number" min="1" placeholder="e.g. 12" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
         <div>
           <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Unit label</label>
-          <select id="res-unit-label" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+          <select id="res-unit-label" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             <option value="chapter">chapter</option>
             <option value="module">module</option>
             <option value="lesson">lesson</option>
@@ -869,13 +1100,13 @@
         </div>
         <div class="col-span-2">
           <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Linked Goal</label>
-          <select id="res-goal" class="w-full border border-outline-variant/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+          <select id="res-goal" class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             <option value="">No goal</option>
           </select>
         </div>
       </div>
       <div class="flex gap-2">
-        <button onclick="saveResource()" class="signature-gradient text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
+        <button onclick="saveResource()" class="signature-gradient text-white px-4 py-2 rounded-xl text-sm font-semibold">Save</button>
         <button onclick="hideResourceForm()" class="text-outline hover:text-on-surface px-3 py-2 text-sm transition-colors">Cancel</button>
       </div>
     </div>
@@ -883,8 +1114,8 @@
     <!-- Progress update inline form -->
     <div id="progress-form" class="hidden px-6 py-3 border-b border-outline-variant/10 bg-amber-50/50 flex items-center gap-3">
       <span class="text-xs text-on-surface-variant flex-1" id="progress-form-label">Update progress</span>
-      <input id="progress-units" type="number" min="0" placeholder="Units done" class="border border-outline-variant/30 rounded-xl px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-primary/30" />
-      <button onclick="submitProgress()" class="signature-gradient text-white px-3 py-1.5 rounded-xl text-xs font-medium hover:opacity-90">Save</button>
+      <input id="progress-units" type="number" min="0" placeholder="Units done" class="border border-outline-variant rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+      <button onclick="submitProgress()" class="signature-gradient text-white px-3 py-1.5 rounded-xl text-xs font-semibold">Save</button>
       <button onclick="hideProgressForm()" class="text-outline hover:text-on-surface text-xs transition-colors">Cancel</button>
       <input id="progress-resource-id" type="hidden" value="" />
     </div>
@@ -931,6 +1162,7 @@ function toggleDarkMode() {
 let goalsFlat = [];
 let goalsTree = [];
 let tasksToday = [];
+let goalsBlueprints = {}; // goalId → blueprint data
 let selectedMood = null;
 let currentWeekStart = getMondayOf(new Date());
 
@@ -977,10 +1209,10 @@ function switchTab(tab) {
     today.classList.remove('hidden');
     weekly.classList.add('hidden');
     // Desktop
-    btnToday.classList.add('border-slate-900', 'text-slate-900', 'font-medium');
-    btnToday.classList.remove('border-transparent', 'text-slate-500');
-    btnWeekly.classList.add('border-transparent', 'text-slate-500');
-    btnWeekly.classList.remove('border-slate-900', 'text-slate-900', 'font-medium');
+    btnToday.classList.add('border-on-surface', 'text-on-surface', 'font-semibold');
+    btnToday.classList.remove('border-transparent', 'text-outline');
+    btnWeekly.classList.add('border-transparent', 'text-outline');
+    btnWeekly.classList.remove('border-on-surface', 'text-on-surface', 'font-semibold');
     // Mobile
     btnTodayM.classList.add('text-primary', 'border-primary');
     btnTodayM.classList.remove('text-outline', 'border-transparent');
@@ -990,10 +1222,10 @@ function switchTab(tab) {
     today.classList.add('hidden');
     weekly.classList.remove('hidden');
     // Desktop
-    btnWeekly.classList.add('border-slate-900', 'text-slate-900', 'font-medium');
-    btnWeekly.classList.remove('border-transparent', 'text-slate-500');
-    btnToday.classList.add('border-transparent', 'text-slate-500');
-    btnToday.classList.remove('border-slate-900', 'text-slate-900', 'font-medium');
+    btnWeekly.classList.add('border-on-surface', 'text-on-surface', 'font-semibold');
+    btnWeekly.classList.remove('border-transparent', 'text-outline');
+    btnToday.classList.add('border-transparent', 'text-outline');
+    btnToday.classList.remove('border-on-surface', 'text-on-surface', 'font-semibold');
     // Mobile
     btnWeeklyM.classList.add('text-primary', 'border-primary');
     btnWeeklyM.classList.remove('text-outline', 'border-transparent');
@@ -1018,6 +1250,22 @@ async function loadGoals() {
   goalsFlat = flattenTree(goalsTree);
   renderGoalTree();
   populateGoalDropdowns();
+  // Load blueprints for all goals in background
+  loadGoalsBlueprints();
+}
+
+async function loadGoalsBlueprints() {
+  const all = goalsFlat.filter(g => g.status === 'active');
+  const results = await Promise.allSettled(
+    all.map(g => fetch(`/api/goals/${g.id}/blueprint`).then(r => r.ok ? r.json() : null))
+  );
+  goalsBlueprints = {};
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value) {
+      goalsBlueprints[all[i].id] = r.value;
+    }
+  });
+  renderGoalTree();
 }
 
 function flattenTree(nodes, result = []) {
@@ -1054,18 +1302,53 @@ function renderGoalNode(g, depth) {
 
   const deadlineStr = g.deadline ? `<span class="text-outline text-xs ml-1">${g.deadline}</span>` : '';
 
+  // Blueprint badge + mini progress bar
+  const bp = goalsBlueprints[g.id];
+  const bpTypeIcon = { learning: '📚', career: '💼', habit: '🔄' };
+  let bpInfo = '';
+  if (bp) {
+    const icon = bpTypeIcon[bp.blueprint_type] || '';
+    const total = bp.total_units || 0;
+    const done = bp.completed_units || 0;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    const schedStatus = bp.schedule_status || '';
+    const behindBadge = schedStatus.startsWith('behind') ? `<span class="text-amber-500 text-[9px]">⚠ behind</span>` : '';
+    if (bp.blueprint_type === 'habit') {
+      const hc = bp.habit_config;
+      const qty = hc ? `${hc.current_quantity}${hc.quantity_unit ? ' ' + hc.quantity_unit : ''}` : '';
+      bpInfo = `<div class="flex items-center gap-1 mt-0.5 ml-6">
+        <span class="text-[10px]">${icon}</span>
+        <span class="text-outline text-[10px]">${qty}</span>
+      </div>`;
+    } else if (total > 0) {
+      bpInfo = `<div class="flex items-center gap-1 mt-0.5 ml-6">
+        <span class="text-[10px]">${icon}</span>
+        <div class="flex-1 h-1 bg-surface-container rounded-full overflow-hidden" style="max-width:60px">
+          <div class="h-full bg-primary rounded-full" style="width:${pct}%"></div>
+        </div>
+        <span class="text-outline text-[10px]">${done}/${total}</span>
+        ${behindBadge}
+      </div>`;
+    } else {
+      bpInfo = `<div class="flex items-center gap-1 mt-0.5 ml-6"><span class="text-[10px]">${icon}</span><span class="text-outline text-[10px]">plan active</span></div>`;
+    }
+  }
+
   return `
   <div class="goal-node" data-id="${g.id}">
-    <div class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-surface-container cursor-pointer group transition-colors"
+    <div class="px-2 py-1 rounded-lg hover:bg-surface-container cursor-pointer group transition-colors"
          style="padding-left: ${8 + indent}px"
          onclick="handleGoalClick(event, ${g.id}, ${hasChildren})">
-      ${arrow}
-      ${statusDot(g.status)}
-      <span class="${levelColor} text-xs font-bold w-4 flex-shrink-0">${levelBadge}</span>
-      <span class="text-on-surface text-sm flex-1 truncate ${g.status === 'completed' ? 'line-through opacity-40' : ''}">${esc(g.title)}</span>
-      ${deadlineStr}
-      <button onclick="event.stopPropagation(); openGoalModal(${g.id})"
-        class="opacity-0 group-hover:opacity-100 text-outline hover:text-on-surface text-xs ml-1 transition-opacity">✎</button>
+      <div class="flex items-center gap-1.5">
+        ${arrow}
+        ${statusDot(g.status)}
+        <span class="${levelColor} text-xs font-bold w-4 flex-shrink-0">${levelBadge}</span>
+        <span class="text-on-surface text-sm flex-1 truncate ${g.status === 'completed' ? 'line-through opacity-40' : ''}">${esc(g.title)}</span>
+        ${deadlineStr}
+        <button onclick="event.stopPropagation(); openGoalModal(${g.id})"
+          class="opacity-0 group-hover:opacity-100 text-outline hover:text-on-surface text-xs ml-1 transition-opacity">✎</button>
+      </div>
+      ${bpInfo}
     </div>
     ${hasChildren ? `<div class="children-container">${g.children.map(c => renderGoalNode(c, depth + 1)).join('')}</div>` : ''}
   </div>`;
@@ -1075,11 +1358,13 @@ function handleGoalClick(event, id, hasChildren) {
   if (hasChildren) {
     const node = event.currentTarget.closest('.goal-node');
     const children = node.querySelector('.children-container');
-    const toggle = event.currentTarget.querySelector('.tree-toggle');
+    const toggle = node.querySelector('.tree-toggle');
     if (children) {
       children.classList.toggle('hidden');
       toggle && toggle.classList.toggle('open');
     }
+  } else if (goalsBlueprints[id]) {
+    openBlueprintDetail(id);
   } else {
     openGoalModal(id);
   }
@@ -1130,6 +1415,7 @@ function openGoalModal(goalId = null) {
     if (!g) return;
     titleEl.textContent = 'Edit Goal';
     deleteBtn.classList.remove('hidden');
+    document.getElementById('modal-smart-plan-btn').classList.remove('hidden');
     statusWrap.classList.remove('hidden');
     idInput.value = goalId;
     document.getElementById('modal-title-input').value = g.title || '';
@@ -1142,6 +1428,7 @@ function openGoalModal(goalId = null) {
   } else {
     titleEl.textContent = 'Add Goal';
     deleteBtn.classList.add('hidden');
+    document.getElementById('modal-smart-plan-btn').classList.remove('hidden');
     statusWrap.classList.add('hidden');
     idInput.value = '';
   }
@@ -1248,6 +1535,10 @@ function taskHTML(t, isCarriedRow) {
     ? `<span class="text-amber-600 text-xs bg-amber-50 px-1.5 py-0.5 rounded font-medium">↩ carried</span>`
     : '';
 
+  const bpBadge = t.blueprint_unit_id
+    ? `<span class="text-indigo-600 text-xs bg-indigo-50 px-1.5 py-0.5 rounded font-medium">📋 blueprint</span>`
+    : '';
+
   const carryWarning = (t.carry_count || 0) >= 3
     ? `<span class="text-orange-400 text-xs" title="This task has been carried forward ${t.carry_count} times">⚠ ×${t.carry_count}</span>`
     : '';
@@ -1266,7 +1557,7 @@ function taskHTML(t, isCarriedRow) {
         ${energyBadge}
         <span class="font-medium text-sm ${t.completed ? 'line-through text-outline' : 'text-on-surface'}">${esc(t.title)}</span>
         <span class="${priorityBadge} text-xs px-1.5 py-0.5 rounded-full font-medium">${t.priority || 'medium'}</span>
-        ${carriedBadge}${carryWarning}${sourceStr}
+        ${carriedBadge}${bpBadge}${carryWarning}${sourceStr}
       </div>
       ${t.description ? `<p class="text-on-surface-variant text-xs mt-0.5 leading-relaxed">${esc(t.description)}</p>` : ''}
       <div class="flex items-center gap-2 mt-1">${goalStr}${timeStr}</div>
@@ -2412,6 +2703,521 @@ function showTelegramSetup() {
   );
 }
 
+// ===== Smart Plan Wizard =====
+
+let wizardGoalId = null;
+let wizardType = null;   // 'learning' | 'career' | 'habit'
+let wizardBlueprint = null;  // proposed blueprint from research
+
+async function openWizardFromGoalModal() {
+  const id = document.getElementById('modal-goal-id').value;
+  if (id) {
+    closeModal();
+    openWizard(parseInt(id));
+    return;
+  }
+  // New goal — save it first, then open wizard with the returned ID
+  const title = document.getElementById('modal-title-input').value.trim();
+  if (!title) { alert('Please enter a goal title first.'); return; }
+  const body = {
+    title,
+    description: document.getElementById('modal-desc').value.trim(),
+    level: document.getElementById('modal-level').value,
+    deadline: document.getElementById('modal-deadline').value || null,
+    parent_id: document.getElementById('modal-parent').value ? Number(document.getElementById('modal-parent').value) : null,
+  };
+  const res = await fetch('/api/goals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const goal = await res.json();
+  await loadGoals();
+  closeModal();
+  openWizard(goal.id);
+}
+
+function openWizard(goalId) {
+  wizardGoalId = goalId;
+  wizardType = null;
+  wizardBlueprint = null;
+  document.getElementById('wizard-backdrop').classList.remove('hidden');
+  wizardGoStep(1);
+}
+
+function closeWizard() {
+  document.getElementById('wizard-backdrop').classList.add('hidden');
+  wizardGoalId = null;
+  wizardType = null;
+  wizardBlueprint = null;
+}
+
+function wizardGoStep(step) {
+  [1,2,3,4].forEach(n => {
+    document.getElementById(`wz-step-${n}`).classList.add('hidden');
+  });
+  document.getElementById(`wz-step-${step}`).classList.remove('hidden');
+  const labels = { 1: 'Step 1 of 4 — Goal type', 2: 'Step 2 of 4 — Details', 3: 'Step 3 of 4 — Researching…', 4: 'Step 4 of 4 — Review & confirm' };
+  document.getElementById('wizard-step-label').textContent = labels[step] || '';
+  if (step === 4) {
+    const btn = document.querySelector('#wz-step-4 button[onclick="wizardConfirm()"]');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Activate plan'; }
+  }
+}
+
+function wizardSelectType(type) {
+  wizardType = type;
+  const titles = { learning: '📚 Learning Goal', career: '💼 Career Goal', habit: '🔄 Habit Setup' };
+  document.getElementById('wizard-title').textContent = titles[type] || 'Smart Goal Setup';
+  renderWizardDetailsForm(type);
+  wizardGoStep(2);
+}
+
+function renderWizardDetailsForm(type) {
+  const goal = goalsFlat.find(g => g.id === wizardGoalId) || {};
+  const deadline = goal.deadline || '';
+  let html = '';
+
+  if (type === 'learning') {
+    const researchBtn = document.getElementById('wz-research-btn');
+    researchBtn.textContent = '🔍 Research & Build Plan';
+    html = `
+      <div class="space-y-4">
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">What are you learning? *</label>
+          <input id="wd-resource-title" type="text" value="${esc(goal.title || '')}"
+            placeholder='e.g. "Atomic Habits" or "React — The Complete Guide"'
+            class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div class="flex gap-3">
+          <div class="flex-1">
+            <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Author (optional)</label>
+            <input id="wd-author" type="text" placeholder="Author name"
+              class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div class="flex-1">
+            <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Type</label>
+            <select id="wd-resource-type"
+              class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <option value="book">Book</option>
+              <option value="course">Online course</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Notes (optional)</label>
+          <textarea id="wd-notes" rows="2" placeholder='e.g. "focus on Part 2" or "using Udemy version"'
+            class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"></textarea>
+        </div>
+        <p class="text-xs text-outline">⏳ The AI will search for this resource's structure and propose a schedule.</p>
+      </div>`;
+
+  } else if (type === 'career') {
+    const researchBtn = document.getElementById('wz-research-btn');
+    researchBtn.textContent = '🔍 Research & Build Plan';
+    html = `
+      <div class="space-y-4">
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">What's the career goal? *</label>
+          <input id="wd-role" type="text" value="${esc(goal.title || '')}"
+            placeholder='e.g. "Get a junior web developer job"'
+            class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Target timeline (weeks)</label>
+          <input id="wd-timeline" type="number" value="12" min="1" max="52"
+            class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">What do you already have?</label>
+          <div class="space-y-1.5">
+            ${['Resume','Portfolio with projects','LinkedIn profile','Basic technical skills','Interview practice'].map(item =>
+              `<label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" class="career-have-cb rounded" value="${esc(item)}" />
+                <span class="text-on-surface">${esc(item)}</span>
+              </label>`).join('')}
+          </div>
+        </div>
+      </div>`;
+
+  } else if (type === 'habit') {
+    const researchBtn = document.getElementById('wz-research-btn');
+    researchBtn.textContent = '✓ Create Habit Plan';
+    html = `
+      <div class="space-y-4">
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">What habit are you building? *</label>
+          <input id="wd-habit-name" type="text" value="${esc(goal.title || '')}"
+            placeholder='e.g. "Running / jogging" or "Daily meditation"'
+            class="w-full border border-outline-variant rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">How often?</label>
+          <div class="flex flex-wrap gap-2">
+            ${['daily','weekdays','weekends'].map(f =>
+              `<label class="flex items-center gap-1.5 text-sm cursor-pointer">
+                <input type="radio" name="wd-freq" value="${f}" ${f==='daily'?'checked':''} class="accent-primary" />
+                <span class="capitalize">${f}</span>
+              </label>`).join('')}
+          </div>
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1.5 block">Does this habit grow over time?</label>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input type="radio" name="wd-prog" value="progressive" onchange="toggleProgressiveFields()" class="accent-primary" /> Progressive
+            </label>
+            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input type="radio" name="wd-prog" value="constant" checked onchange="toggleProgressiveFields()" class="accent-primary" /> Constant
+            </label>
+          </div>
+        </div>
+        <div id="wd-progressive-fields" class="hidden space-y-3 bg-surface-container-low rounded-xl p-4">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Starting amount</label>
+              <input id="wd-base-qty" type="number" value="1" step="0.1" min="0"
+                class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Target amount</label>
+              <input id="wd-target-qty" type="number" value="5" step="0.1" min="0"
+                class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Unit</label>
+              <input id="wd-qty-unit" type="text" value="km" placeholder="km, min, pages, reps…"
+                class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Increase every</label>
+              <select id="wd-inc-freq"
+                class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="weekly">Week</option>
+                <option value="biweekly">2 weeks</option>
+                <option value="monthly">Month</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-outline uppercase tracking-widest mb-1 block">Increase by</label>
+            <input id="wd-inc-amount" type="number" value="0.5" step="0.1" min="0"
+              class="w-full border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('wz-details-form').innerHTML = html;
+}
+
+function toggleProgressiveFields() {
+  const val = document.querySelector('input[name="wd-prog"]:checked')?.value;
+  document.getElementById('wd-progressive-fields').classList.toggle('hidden', val !== 'progressive');
+}
+
+function getWizardDetails() {
+  if (wizardType === 'learning') {
+    return {
+      resource_title: document.getElementById('wd-resource-title')?.value.trim() || '',
+      author: document.getElementById('wd-author')?.value.trim() || null,
+      resource_type: document.getElementById('wd-resource-type')?.value || 'book',
+      notes: document.getElementById('wd-notes')?.value.trim() || null,
+    };
+  }
+  if (wizardType === 'career') {
+    const have = [...document.querySelectorAll('.career-have-cb:checked')].map(el => el.value);
+    const all = [...document.querySelectorAll('.career-have-cb')].map(el => el.value);
+    const missing = all.filter(v => !have.includes(v));
+    return {
+      role: document.getElementById('wd-role')?.value.trim() || '',
+      timeline_weeks: parseInt(document.getElementById('wd-timeline')?.value) || 12,
+      have,
+      missing,
+    };
+  }
+  if (wizardType === 'habit') {
+    const freq = document.querySelector('input[name="wd-freq"]:checked')?.value || 'daily';
+    const prog = document.querySelector('input[name="wd-prog"]:checked')?.value || 'constant';
+    const habitConfig = {
+      frequency: freq,
+      progression_type: prog,
+    };
+    if (prog === 'progressive') {
+      Object.assign(habitConfig, {
+        base_quantity: parseFloat(document.getElementById('wd-base-qty')?.value) || 1,
+        current_quantity: parseFloat(document.getElementById('wd-base-qty')?.value) || 1,
+        target_quantity: parseFloat(document.getElementById('wd-target-qty')?.value) || 5,
+        quantity_unit: document.getElementById('wd-qty-unit')?.value.trim() || 'unit',
+        increment_amount: parseFloat(document.getElementById('wd-inc-amount')?.value) || 0.5,
+        increment_frequency: document.getElementById('wd-inc-freq')?.value || 'weekly',
+      });
+    }
+    return {
+      habit_name: document.getElementById('wd-habit-name')?.value.trim() || 'Habit',
+      habit_config: habitConfig,
+    };
+  }
+  return {};
+}
+
+async function wizardStartResearch() {
+  const details = getWizardDetails();
+
+  // Validate required fields
+  if (wizardType === 'learning' && !details.resource_title) {
+    showToast('Please enter the resource title.', 'error'); return;
+  }
+  if (wizardType === 'career' && !details.role) {
+    showToast('Please enter the career goal.', 'error'); return;
+  }
+  if (wizardType === 'habit' && !details.habit_name) {
+    showToast('Please enter a habit name.', 'error'); return;
+  }
+
+  // Habit: no research needed — build from form and skip to step 4
+  if (wizardType === 'habit') {
+    wizardBlueprint = {
+      blueprint_type: 'habit',
+      title: details.habit_name,
+      source_info: null,
+      unit_label: 'session',
+      estimated_pace_minutes: 20,
+      milestones: [],
+      units: [],
+      habit_config: details.habit_config,
+      confidence: 'high',
+    };
+    renderWizardReview(wizardBlueprint);
+    wizardGoStep(4);
+    return;
+  }
+
+  // Learning / Career: call API
+  wizardGoStep(3);
+  const msgs = wizardType === 'learning'
+    ? ['Searching for resource structure…', 'Finding chapter details…', 'Building your schedule…']
+    : ['Researching the job market…', 'Identifying skill gaps…', 'Building your job search plan…'];
+  let mIdx = 0;
+  const msgEl = document.getElementById('wz-loading-msg');
+  const msgInterval = setInterval(() => {
+    mIdx = (mIdx + 1) % msgs.length;
+    msgEl.textContent = msgs[mIdx];
+  }, 4000);
+  document.getElementById('wz-error-box').classList.add('hidden');
+
+  try {
+    const res = await fetch(`/api/goals/${wizardGoalId}/research`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: wizardType, details }),
+    });
+    clearInterval(msgInterval);
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Research failed');
+    }
+    wizardBlueprint = data.blueprint;
+    renderWizardReview(wizardBlueprint);
+    wizardGoStep(4);
+  } catch (err) {
+    clearInterval(msgInterval);
+    document.getElementById('wz-error-box').classList.remove('hidden');
+    document.getElementById('wz-error-msg').textContent = err.message || String(err);
+  }
+}
+
+function renderWizardReview(bp) {
+  const { blueprint_type, title, milestones = [], units = [], confidence, general_notes, market_assessment, habit_config } = bp;
+
+  // Title
+  const typeIcon = { learning: '📚', career: '💼', habit: '🔄' }[blueprint_type] || '';
+  document.getElementById('wz-review-title').textContent = `${typeIcon} ${title}`;
+
+  // Meta row
+  const goal = goalsFlat.find(g => g.id === wizardGoalId) || {};
+  const metaEl = document.getElementById('wz-review-meta');
+  const metaParts = [];
+  if (units.length) metaParts.push(`${units.length} ${bp.unit_label || 'unit'}s`);
+  if (goal.deadline) metaParts.push(`Deadline: ${goal.deadline}`);
+  if (bp.estimated_pace_minutes) metaParts.push(`~${bp.estimated_pace_minutes} min/${bp.unit_label || 'unit'}`);
+  metaEl.textContent = metaParts.join(' · ');
+
+  // Confidence warning
+  document.getElementById('wz-confidence-warn').classList.toggle('hidden', confidence !== 'low');
+
+  // Market note (career)
+  const marketEl = document.getElementById('wz-market-note');
+  if (market_assessment) {
+    marketEl.textContent = market_assessment;
+    marketEl.classList.remove('hidden');
+  } else {
+    marketEl.classList.add('hidden');
+  }
+
+  // Habit summary
+  const habitEl = document.getElementById('wz-habit-summary');
+  const addUnitBtn = document.getElementById('wz-add-unit-btn');
+  if (blueprint_type === 'habit' && habit_config) {
+    const hc = habit_config;
+    const freq = hc.frequency || 'daily';
+    const prog = hc.progression_type || 'constant';
+    let summaryHtml = `
+      <div class="flex items-center gap-2 text-sm">
+        <span class="font-medium text-on-surface">Frequency:</span>
+        <span class="text-on-surface-variant capitalize">${esc(freq)}</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm">
+        <span class="font-medium text-on-surface">Type:</span>
+        <span class="text-on-surface-variant capitalize">${esc(prog)}</span>
+      </div>`;
+    if (prog === 'progressive' && hc.base_quantity != null) {
+      summaryHtml += `
+        <div class="flex items-center gap-2 text-sm">
+          <span class="font-medium text-on-surface">Progression:</span>
+          <span class="text-on-surface-variant">${hc.base_quantity} → ${hc.target_quantity} ${esc(hc.quantity_unit || '')} (↑${hc.increment_amount} every ${esc(hc.increment_frequency || 'week')})</span>
+        </div>`;
+    }
+    habitEl.innerHTML = summaryHtml;
+    habitEl.classList.remove('hidden');
+    document.getElementById('wz-review-milestones').innerHTML = '';
+    addUnitBtn.classList.add('hidden');
+  } else {
+    habitEl.classList.add('hidden');
+    addUnitBtn.classList.remove('hidden');
+    renderWizardUnitsTable(milestones, units);
+  }
+
+  // General notes
+  if (general_notes) {
+    document.getElementById('wz-review-milestones').insertAdjacentHTML('beforeend',
+      `<div class="text-xs text-outline italic mt-2 px-1">💡 ${esc(general_notes)}</div>`);
+  }
+}
+
+function renderWizardUnitsTable(milestones, units) {
+  const container = document.getElementById('wz-review-milestones');
+
+  // Group units by milestone_index
+  const byMs = {};
+  units.forEach((u, idx) => {
+    const k = u.milestone_index ?? 0;
+    if (!byMs[k]) byMs[k] = [];
+    byMs[k].push({ ...u, _idx: idx });
+  });
+
+  // If no milestones defined but there are units, create a fallback group
+  const msArr = milestones.length ? milestones : [{ title: 'All Units', sort_order: 0 }];
+  const msIndexes = milestones.length
+    ? msArr.map((_, i) => i)
+    : [0];
+
+  // Also collect units with no milestone match
+  const allIndexes = new Set(Object.keys(byMs).map(Number));
+  const extraIndexes = [...allIndexes].filter(i => !msIndexes.includes(i));
+
+  let html = '';
+  const renderGroup = (msIdx, msTitle) => {
+    const msUnits = byMs[msIdx] || [];
+    if (!msUnits.length && milestones.length) return '';
+    return `
+      <div class="border border-outline-variant/20 rounded-xl overflow-hidden">
+        <div class="bg-surface-container-low px-4 py-2 flex items-center gap-2">
+          <span class="text-primary text-xs">📍</span>
+          <input value="${esc(msTitle)}" data-ms="${msIdx}" data-field="title"
+            class="flex-1 bg-transparent text-xs font-semibold text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/30 rounded px-1 py-0.5" />
+        </div>
+        ${msUnits.length ? `
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead class="bg-surface-container text-outline">
+              <tr>
+                <th class="px-3 py-1.5 text-left font-medium w-7">#</th>
+                <th class="px-3 py-1.5 text-left font-medium">Title</th>
+                <th class="px-3 py-1.5 text-left font-medium w-20">Min</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${msUnits.map(u => `
+                <tr class="border-t border-outline-variant/10">
+                  <td class="px-3 py-1.5 text-outline">${u.unit_number}</td>
+                  <td class="px-3 py-1.5">
+                    <input value="${esc(u.title)}" data-unit="${u._idx}" data-field="title"
+                      class="w-full bg-transparent text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/30 rounded px-1 py-0.5" />
+                  </td>
+                  <td class="px-3 py-1.5">
+                    <input type="number" value="${u.estimated_minutes || 30}" data-unit="${u._idx}" data-field="estimated_minutes"
+                      class="w-full bg-transparent text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/30 rounded px-1 py-0.5" />
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<div class="px-4 py-2 text-xs text-outline">No units in this milestone</div>'}
+      </div>`;
+  };
+
+  msArr.forEach((ms, i) => { html += renderGroup(i, ms.title); });
+  extraIndexes.forEach(i => { html += renderGroup(i, `Group ${i + 1}`); });
+
+  container.innerHTML = html;
+}
+
+function wizardAddUnit() {
+  if (!wizardBlueprint) return;
+  const units = wizardBlueprint.units;
+  const nextNum = (units[units.length - 1]?.unit_number || 0) + 1;
+  const lastMsIdx = units[units.length - 1]?.milestone_index ?? 0;
+  units.push({ unit_number: nextNum, title: 'New unit', estimated_minutes: 30, difficulty: 1.0, milestone_index: lastMsIdx });
+  renderWizardUnitsTable(wizardBlueprint.milestones || [], wizardBlueprint.units);
+}
+
+function collectWizardBlueprint() {
+  if (!wizardBlueprint) return null;
+  const bp = JSON.parse(JSON.stringify(wizardBlueprint));  // deep copy
+
+  // Collect edited milestone titles
+  document.querySelectorAll('[data-ms][data-field="title"]').forEach(input => {
+    const msIdx = parseInt(input.dataset.ms);
+    if (bp.milestones[msIdx]) bp.milestones[msIdx].title = input.value;
+  });
+
+  // Collect edited unit fields
+  document.querySelectorAll('[data-unit]').forEach(input => {
+    const uIdx = parseInt(input.dataset.unit);
+    const field = input.dataset.field;
+    if (bp.units[uIdx] !== undefined) {
+      bp.units[uIdx][field] = field === 'estimated_minutes' ? (parseInt(input.value) || 30) : input.value;
+    }
+  });
+
+  return bp;
+}
+
+async function wizardConfirm() {
+  const bp = collectWizardBlueprint();
+  if (!bp || !wizardGoalId) return;
+
+  const btn = document.querySelector('#wz-step-4 button[onclick="wizardConfirm()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  try {
+    const res = await fetch(`/api/goals/${wizardGoalId}/blueprint`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bp),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to save blueprint');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Activate plan'; }
+    closeWizard();
+    await loadGoals();
+    showToast('Smart plan created!');
+  } catch (err) {
+    showToast(err.message || 'Failed to save plan.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Activate plan'; }
+  }
+}
+
 // ===== Automation Modal =====
 
 let _automationSettings = {};
@@ -2541,6 +3347,479 @@ function scheduleNotificationChecks() {
 
 if (Notification.permission === 'granted') {
   scheduleNotificationChecks();
+}
+
+// ===== Blueprint Detail View =====
+let currentBlueprintGoalId = null;
+
+async function openBlueprintDetail(goalId) {
+  currentBlueprintGoalId = goalId;
+  const modal = document.getElementById('blueprint-modal');
+  const body = document.getElementById('bp-modal-body');
+  const titleEl = document.getElementById('bp-modal-title');
+  const reschedBtn = document.getElementById('bp-reschedule-btn');
+
+  body.innerHTML = '<p class="text-outline italic">Loading...</p>';
+  titleEl.textContent = '';
+  reschedBtn.classList.add('hidden');
+  modal.classList.remove('hidden');
+
+  try {
+    const res = await fetch(`/api/goals/${goalId}/blueprint`);
+    if (!res.ok) {
+      body.innerHTML = '<p class="text-error">No blueprint found for this goal.</p>';
+      return;
+    }
+    const bp = await res.json();
+    goalsBlueprints[goalId] = bp;
+
+    const goal = goalsFlat.find(g => g.id === goalId);
+    const typeIcon = { learning: '📚', career: '💼', habit: '🔄' }[bp.blueprint_type] || '';
+    titleEl.textContent = `${typeIcon} ${goal ? goal.title : bp.title}`;
+
+    if (bp.blueprint_type !== 'habit') {
+      reschedBtn.classList.remove('hidden');
+      reschedBtn.dataset.blueprintId = bp.id;
+    }
+
+    if (bp.blueprint_type === 'learning') {
+      body.innerHTML = renderLearningBlueprint(bp, goal);
+    } else if (bp.blueprint_type === 'career') {
+      body.innerHTML = renderCareerBlueprint(bp, goal);
+    } else if (bp.blueprint_type === 'habit') {
+      body.innerHTML = renderHabitBlueprint(bp, goal);
+    }
+  } catch (e) {
+    body.innerHTML = `<p class="text-error">Error loading blueprint: ${esc(e.message)}</p>`;
+  }
+}
+
+function closeBlueprintDetail() {
+  document.getElementById('blueprint-modal').classList.add('hidden');
+  currentBlueprintGoalId = null;
+}
+
+async function rescheduleBlueprintFromModal() {
+  const btn = document.getElementById('bp-reschedule-btn');
+  const bpId = btn.dataset.blueprintId;
+  if (!bpId) return;
+  btn.textContent = '…';
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/blueprints/${bpId}/reschedule`, { method: 'POST' });
+    if (res.ok) {
+      showToast('Schedule updated!');
+      if (currentBlueprintGoalId) openBlueprintDetail(currentBlueprintGoalId);
+    } else {
+      showToast('Reschedule failed');
+    }
+  } catch (e) {
+    showToast('Error rescheduling');
+  } finally {
+    btn.textContent = '↺ Reschedule';
+    btn.disabled = false;
+  }
+}
+
+function renderLearningBlueprint(bp, goal) {
+  const total = bp.total_units || 0;
+  const done = bp.completed_units || 0;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const label = bp.unit_label || 'unit';
+  const estPace = bp.estimated_pace_minutes;
+  const actPace = bp.actual_pace_minutes;
+  const samples = bp.pace_samples || 0;
+  const schedStatus = bp.schedule_status || 'on_track';
+  const deadline = goal && goal.deadline ? goal.deadline : null;
+
+  const behindHtml = schedStatus.startsWith('behind') ? (() => {
+    const n = schedStatus.split('_')[1];
+    return `<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 mb-4 text-amber-700 text-xs">
+      ⚠ You are ${n} ${label}${n > 1 ? 's' : ''} behind schedule.
+    </div>`;
+  })() : '';
+
+  // Milestones
+  let milestonesHtml = '';
+  if (bp.milestones && bp.milestones.length) {
+    const msRows = bp.milestones.map(m => {
+      const icon = m.completed ? '✅' : '⬜';
+      const dateStr = m.target_date ? `<span class="text-outline text-xs ml-1">due ${m.target_date}</span>` : '';
+      return `<div class="flex items-center gap-2 py-1.5 border-b border-outline-variant/10 last:border-0">
+        <span>${icon}</span>
+        <span class="flex-1 font-medium text-on-surface">${esc(m.title)}</span>
+        ${dateStr}
+      </div>`;
+    }).join('');
+    milestonesHtml = `<div class="mb-4">
+      <p class="text-[10px] font-bold uppercase tracking-widest text-outline mb-2">Milestones</p>
+      ${msRows}
+    </div>`;
+  }
+
+  // Units — show next 10 upcoming + recently completed
+  const units = bp.units || [];
+  const upcoming = units.filter(u => u.status !== 'completed' && u.status !== 'skipped').slice(0, 10);
+  const recentDone = units.filter(u => u.status === 'completed').slice(-3).reverse();
+
+  const today = new Date().toLocaleDateString('en-CA');
+  const unitRows = [...upcoming].map(u => {
+    const isToday = u.scheduled_date === today;
+    const statusIcon = u.status === 'in_progress' ? '🔵' : (isToday ? '🔵' : '⬜');
+    const dateLabel = u.scheduled_date ? `<span class="text-outline text-xs">${u.scheduled_date === today ? 'today' : u.scheduled_date}</span>` : '';
+    const minLabel = u.estimated_minutes ? `<span class="text-outline text-xs">${u.estimated_minutes}m</span>` : '';
+    return `<div class="flex items-center gap-2 py-1.5 border-b border-outline-variant/10 last:border-0 ${isToday ? 'bg-primary/5 -mx-2 px-2 rounded-lg' : ''}">
+      <span class="text-xs w-4">${statusIcon}</span>
+      <span class="flex-1 text-on-surface">${esc(u.title)}</span>
+      ${dateLabel}${minLabel}
+    </div>`;
+  });
+  const doneRows = recentDone.map(u => `<div class="flex items-center gap-2 py-1 opacity-50">
+    <span class="text-xs w-4">✅</span>
+    <span class="flex-1 line-through text-outline">${esc(u.title)}</span>
+    ${u.actual_minutes ? `<span class="text-xs text-outline">${u.actual_minutes}m</span>` : ''}
+  </div>`);
+
+  const unitsHtml = (unitRows.length || doneRows.length) ? `<div class="mb-4">
+    <p class="text-[10px] font-bold uppercase tracking-widest text-outline mb-2">Upcoming ${label}s</p>
+    ${[...doneRows, ...unitRows].join('')}
+    ${units.filter(u => u.status !== 'completed' && u.status !== 'skipped').length > 10
+      ? `<p class="text-outline text-xs mt-1">+ ${units.filter(u => u.status !== 'completed' && u.status !== 'skipped').length - 10} more</p>` : ''}
+  </div>` : '';
+
+  // Pace analysis
+  let paceHtml = '';
+  if (estPace || actPace) {
+    const paceNote = samples < 3 ? '(still learning your pace)' : `(based on ${samples} ${label}s)`;
+    paceHtml = `<div class="bg-surface-container-low rounded-xl p-3 mb-4">
+      <p class="text-[10px] font-bold uppercase tracking-widest text-outline mb-2">Pace Analysis</p>
+      ${estPace ? `<div class="flex justify-between"><span class="text-on-surface-variant">AI estimated</span><span>${estPace}min/${label}</span></div>` : ''}
+      ${actPace ? `<div class="flex justify-between"><span class="text-on-surface-variant">Your actual ${paceNote}</span><span class="font-medium">${actPace.toFixed(0)}min/${label}</span></div>` : ''}
+    </div>`;
+  }
+
+  return `
+    <div class="flex items-center gap-3 mb-4">
+      <div class="flex-1">
+        <div class="flex justify-between text-xs text-outline mb-1">
+          <span>${done} / ${total} ${label}s</span>
+          <span>${pct}%</span>
+        </div>
+        <div class="h-2 bg-surface-container rounded-full overflow-hidden">
+          <div class="h-full bg-primary rounded-full transition-all" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${deadline ? `<span class="text-outline text-xs">due ${deadline}</span>` : ''}
+    </div>
+    ${behindHtml}${milestonesHtml}${unitsHtml}${paceHtml}`;
+}
+
+function renderCareerBlueprint(bp, goal) {
+  const total = bp.total_units || 0;
+  const done = bp.completed_units || 0;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const stats = bp.pipeline_stats || {};
+  const pipeline = bp.pipeline || [];
+  const deadline = goal && goal.deadline ? goal.deadline : null;
+
+  const statsHtml = `<div class="grid grid-cols-3 gap-2 mb-4">
+    <div class="bg-surface-container-low rounded-xl p-3 text-center">
+      <p class="text-lg font-bold text-on-surface">${stats.total_applications || 0}</p>
+      <p class="text-[10px] text-outline uppercase tracking-widest">Applications</p>
+    </div>
+    <div class="bg-surface-container-low rounded-xl p-3 text-center">
+      <p class="text-lg font-bold text-on-surface">${stats.interviews || 0}</p>
+      <p class="text-[10px] text-outline uppercase tracking-widest">Interviews</p>
+    </div>
+    <div class="bg-surface-container-low rounded-xl p-3 text-center">
+      <p class="text-lg font-bold text-on-surface">${stats.offers || 0}</p>
+      <p class="text-[10px] text-outline uppercase tracking-widest">Offers</p>
+    </div>
+  </div>`;
+
+  // Milestones as phases
+  let phasesHtml = '';
+  if (bp.milestones && bp.milestones.length) {
+    const phases = bp.milestones.map(m => {
+      const icon = m.completed ? '✅' : '🔵';
+      return `<div class="flex items-center gap-2 py-1.5 border-b border-outline-variant/10 last:border-0">
+        <span>${icon}</span>
+        <span class="flex-1 font-medium">${esc(m.title)}</span>
+        ${m.target_date ? `<span class="text-outline text-xs">${m.target_date}</span>` : ''}
+      </div>`;
+    }).join('');
+    phasesHtml = `<div class="mb-4">
+      <p class="text-[10px] font-bold uppercase tracking-widest text-outline mb-2">Phases</p>
+      ${phases}
+    </div>`;
+  }
+
+  const APPLICATION_STATUSES = ['applied','screening','interview','offer','rejected'];
+  const PORTFOLIO_STATUSES = ['idea','in_progress','completed','published'];
+  const statusColors = {
+    applied: 'bg-blue-50 text-blue-700', screening: 'bg-purple-50 text-purple-700',
+    interview: 'bg-amber-50 text-amber-700', offer: 'bg-green-50 text-green-700',
+    rejected: 'bg-red-50 text-red-600', in_progress: 'bg-yellow-50 text-yellow-700',
+    completed: 'bg-green-50 text-green-700', published: 'bg-teal-50 text-teal-700',
+    idea: 'bg-gray-50 text-gray-600',
+  };
+
+  // All pipeline entries grouped
+  let pipelineHtml = '';
+  if (pipeline.length) {
+    const rows = pipeline.slice().reverse().map(p => {
+      const sc = statusColors[p.status] || 'bg-surface-container text-outline';
+      const statusOptions = (p.entry_type === 'portfolio_piece' ? PORTFOLIO_STATUSES : APPLICATION_STATUSES)
+        .map(s => `<option value="${s}" ${p.status === s ? 'selected' : ''}>${s}</option>`).join('');
+      return `<div class="flex items-start gap-2 py-2 border-b border-outline-variant/10 last:border-0">
+        <div class="flex-1 min-w-0">
+          <p class="truncate font-medium">${esc(p.title)}</p>
+          ${p.company ? `<p class="text-outline text-xs">${esc(p.company)}</p>` : ''}
+          ${p.follow_up_date ? `<p class="text-outline text-xs">Follow up: ${p.follow_up_date}</p>` : ''}
+        </div>
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          <select onchange="updatePipelineEntryStatus(${p.id}, this.value)"
+            class="text-[11px] border border-outline-variant/20 rounded px-1 py-0.5 ${sc} cursor-pointer focus:outline-none">
+            ${statusOptions}
+          </select>
+          <button onclick="openPipelineModal(${bp.id}, ${JSON.stringify(p).replace(/"/g, '&quot;')})"
+            class="text-outline hover:text-on-surface text-xs px-1">✏</button>
+        </div>
+      </div>`;
+    }).join('');
+    pipelineHtml = `<div class="mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-outline">Applications & Entries</p>
+        <span class="text-outline text-xs">${pipeline.length} total</span>
+      </div>
+      ${rows}
+    </div>`;
+  }
+
+  const addBtnHtml = `<button onclick="openPipelineModal(${bp.id})"
+    class="w-full mt-2 border border-dashed border-outline-variant/40 text-outline hover:text-primary hover:border-primary/40 rounded-xl py-2 text-sm transition-colors">
+    + Log Application / Entry
+  </button>`;
+
+  return `
+    <div class="flex items-center gap-3 mb-4">
+      <div class="flex-1">
+        <div class="flex justify-between text-xs text-outline mb-1">
+          <span>${done} / ${total} tasks</span>
+          <span>${pct}%</span>
+        </div>
+        <div class="h-2 bg-surface-container rounded-full overflow-hidden">
+          <div class="h-full bg-primary rounded-full" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${deadline ? `<span class="text-outline text-xs">due ${deadline}</span>` : ''}
+    </div>
+    ${statsHtml}${phasesHtml}${pipelineHtml}${addBtnHtml}`;
+}
+
+function renderHabitBlueprint(bp, goal) {
+  const hc = bp.habit_config;
+  if (!hc) return '<p class="text-outline italic">No habit config found.</p>';
+
+  const qty = hc.current_quantity;
+  const unit = hc.quantity_unit || '';
+  const target = hc.target_quantity;
+  const base = hc.base_quantity;
+  const progType = hc.progression_type || 'constant';
+  const freq = hc.frequency || 'daily';
+  const incAmt = hc.increment_amount;
+  const incFreq = hc.increment_frequency || 'weekly';
+  const streak = bp.habit_streak || 0;
+
+  const today = new Date().toLocaleDateString('en-CA');
+  const units = bp.units || [];
+  const todayUnit = units.find(u => u.scheduled_date === today);
+  const alreadyLogged = todayUnit && todayUnit.status === 'completed';
+
+  let progressionHtml = '';
+  if (progType === 'progressive' && target) {
+    const pct = base && target > base ? Math.round(((qty - base) / (target - base)) * 100) : 0;
+    progressionHtml = `<div class="bg-surface-container-low rounded-xl p-3 mb-4">
+      <p class="text-[10px] font-bold uppercase tracking-widest text-outline mb-2">Progression</p>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-outline">${base} ${unit} (start)</span>
+        <span class="font-medium">${qty} ${unit} (now)</span>
+        <span class="text-outline">${target} ${unit} (goal)</span>
+      </div>
+      <div class="h-2 bg-surface-container rounded-full overflow-hidden">
+        <div class="h-full bg-tertiary rounded-full" style="width:${Math.max(0, Math.min(100, pct))}%"></div>
+      </div>
+      ${incAmt ? `<p class="text-outline text-xs mt-1">+${incAmt} ${unit} every ${incFreq}</p>` : ''}
+    </div>`;
+  }
+
+  // Recent units as habit log
+  const recentUnits = units.slice(-14).reverse();
+  const logRows = recentUnits.map(u => {
+    const icon = u.status === 'completed' ? '✅' : (u.scheduled_date === today ? '🔵' : '⬜');
+    let meta = {};
+    try { meta = JSON.parse(u.metadata || '{}'); } catch(e) {}
+    const qtyStr = meta.actual_quantity != null ? `${meta.actual_quantity} ${unit}` : (u.actual_minutes ? `${u.actual_minutes}m` : '');
+    return `<div class="flex items-center gap-2 py-1 border-b border-outline-variant/10 last:border-0">
+      <span class="text-xs">${icon}</span>
+      <span class="text-outline text-xs flex-1">${u.scheduled_date || ''}</span>
+      ${qtyStr ? `<span class="text-xs text-outline">${qtyStr}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  const logHtml = logRows ? `<div class="mb-4">
+    <p class="text-[10px] font-bold uppercase tracking-widest text-outline mb-2">Recent Sessions</p>
+    ${logRows}
+  </div>` : '';
+
+  const logBtnHtml = alreadyLogged
+    ? `<div class="mt-3 flex items-center gap-2 text-sm text-green-600 font-medium">
+        <span>✅</span><span>Logged for today!</span>
+       </div>`
+    : `<div class="mt-3 flex gap-2 items-center">
+        ${qty !== null ? `<input id="habit-actual-qty-${bp.id}" type="number" step="0.1"
+          placeholder="${qty}${unit ? ' ' + unit : ''}"
+          class="w-28 text-sm border border-outline-variant/30 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/30" />` : ''}
+        <button id="habit-log-btn-${bp.id}" onclick="logHabitToday(${bp.id})"
+          class="flex-1 bg-primary text-white text-sm font-medium rounded-xl px-4 py-2 hover:bg-primary/90 transition-colors">
+          ✓ Log Today
+        </button>
+       </div>`;
+
+  return `
+    <div class="grid grid-cols-3 gap-3 mb-4">
+      <div class="bg-surface-container-low rounded-xl p-3">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-outline mb-1">Today's Target</p>
+        <p class="text-xl font-bold text-on-surface">${qty != null ? qty : '—'} <span class="text-sm font-normal text-outline">${unit}</span></p>
+      </div>
+      <div class="bg-surface-container-low rounded-xl p-3">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-outline mb-1">Frequency</p>
+        <p class="text-sm font-medium text-on-surface capitalize">${freq}</p>
+      </div>
+      <div class="bg-surface-container-low rounded-xl p-3 text-center">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-outline mb-1">Streak</p>
+        <p class="text-xl font-bold text-on-surface">${streak} <span class="text-sm font-normal">${streak === 1 ? 'day' : 'days'}</span>${streak >= 3 ? ' 🔥' : ''}</p>
+      </div>
+    </div>
+    ${progressionHtml}${logHtml}${logBtnHtml}`;
+}
+
+// ===== Career Pipeline Modal =====
+
+function openPipelineModal(blueprintId, entry = null) {
+  document.getElementById('pe-blueprint-id').value = blueprintId;
+  document.getElementById('pe-entry-id').value = entry ? entry.id : '';
+  document.getElementById('pe-type').value = entry ? (entry.entry_type || 'application') : 'application';
+  document.getElementById('pe-status').value = entry ? (entry.status || 'applied') : 'applied';
+  document.getElementById('pe-title').value = entry ? (entry.title || '') : '';
+  document.getElementById('pe-company').value = entry ? (entry.company || '') : '';
+  document.getElementById('pe-deadline').value = entry ? (entry.deadline || '') : '';
+  document.getElementById('pe-followup').value = entry ? (entry.follow_up_date || '') : '';
+  document.getElementById('pe-url').value = entry ? (entry.url || '') : '';
+  document.getElementById('pe-notes').value = entry ? (entry.notes || '') : '';
+  onPipelineTypeChange();
+  document.getElementById('pipeline-entry-modal').classList.remove('hidden');
+}
+
+function closePipelineModal() {
+  document.getElementById('pipeline-entry-modal').classList.add('hidden');
+}
+
+function onPipelineTypeChange() {
+  const type = document.getElementById('pe-type').value;
+  const showCompany = ['application', 'interview', 'networking'].includes(type);
+  document.getElementById('pe-company-wrap').style.display = showCompany ? '' : 'none';
+  const statusSelect = document.getElementById('pe-status');
+  const portfolioStatuses = [['idea','Idea'],['in_progress','In Progress'],['completed','Completed'],['published','Published']];
+  const appStatuses = [['applied','Applied'],['screening','Screening'],['interview','Interview'],['offer','Offer'],['rejected','Rejected']];
+  const opts = (type === 'portfolio_piece' ? portfolioStatuses : appStatuses)
+    .map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
+  statusSelect.innerHTML = opts;
+}
+
+async function savePipelineEntry() {
+  const blueprintId = document.getElementById('pe-blueprint-id').value;
+  const entryId = document.getElementById('pe-entry-id').value;
+  const title = document.getElementById('pe-title').value.trim();
+  if (!title) { showToast('Title is required'); return; }
+
+  const payload = {
+    blueprint_id: parseInt(blueprintId),
+    entry_type: document.getElementById('pe-type').value,
+    title,
+    company: document.getElementById('pe-company').value.trim() || null,
+    status: document.getElementById('pe-status').value || null,
+    url: document.getElementById('pe-url').value.trim() || null,
+    deadline: document.getElementById('pe-deadline').value || null,
+    follow_up_date: document.getElementById('pe-followup').value || null,
+    notes: document.getElementById('pe-notes').value.trim() || null,
+  };
+
+  try {
+    const url = entryId ? `/api/career/pipeline/${entryId}` : '/api/career/pipeline';
+    const method = entryId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      closePipelineModal();
+      showToast(entryId ? 'Entry updated!' : 'Entry logged!');
+      if (currentBlueprintGoalId) openBlueprintDetail(currentBlueprintGoalId);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.error || 'Failed to save entry');
+    }
+  } catch (e) {
+    showToast('Error saving entry');
+  }
+}
+
+async function updatePipelineEntryStatus(entryId, newStatus) {
+  try {
+    const res = await fetch(`/api/career/pipeline/${entryId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (res.ok) {
+      showToast('Status updated');
+      if (currentBlueprintGoalId) openBlueprintDetail(currentBlueprintGoalId);
+    } else {
+      showToast('Failed to update status');
+    }
+  } catch (e) {
+    showToast('Error updating status');
+  }
+}
+
+async function logHabitToday(blueprintId) {
+  const qtyInput = document.getElementById(`habit-actual-qty-${blueprintId}`);
+  const actualQty = qtyInput && qtyInput.value ? parseFloat(qtyInput.value) : null;
+  const btn = document.getElementById(`habit-log-btn-${blueprintId}`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  try {
+    const res = await fetch(`/api/habits/${blueprintId}/log`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actual_quantity: actualQty }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const s = data.streak;
+      showToast(`Logged! ${s >= 3 ? s + '-day streak 🔥' : 'Keep it up!'}`);
+      if (currentBlueprintGoalId) openBlueprintDetail(currentBlueprintGoalId);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.error || 'Failed to log habit');
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Log Today'; }
+    }
+  } catch (e) {
+    showToast('Error logging habit');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Log Today'; }
+  }
 }
 </script>
 </body>

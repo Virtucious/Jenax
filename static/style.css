@@ -1,5 +1,11 @@
 /* Jenax — custom styles beyond Tailwind */
 
+/* Clay Design System — body text rendering */
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
 /* Smooth task completion transition */
 .task-item {
     transition: opacity 0.2s ease, transform 0.2s ease;

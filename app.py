@@ -679,6 +679,7 @@ def generate_plan_stream():
                     date_str=today_str,
                     source="ai",
                     estimated_minutes=t.get("estimated_minutes"),
+                    blueprint_unit_id=t.get("blueprint_unit_id"),
                 )
                 inserted.append(task)
             results["planner"]["tasks"] = inserted
@@ -699,6 +700,299 @@ def generate_plan_stream():
         mimetype="text/plain",
         headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Goal Blueprints
+# ---------------------------------------------------------------------------
+
+@app.route("/api/goals/<int:goal_id>/research", methods=["POST"])
+def research_goal_blueprint(goal_id):
+    """Research a goal and return a proposed blueprint (not saved to DB)."""
+    import goal_researcher
+
+    goal = db.get_goal(goal_id)
+    if not goal:
+        return jsonify({"error": "Goal not found"}), 404
+
+    data = request.get_json(force=True)
+    goal_type = data.get("type")
+    details = data.get("details", {})
+
+    if goal_type not in ("learning", "career", "habit"):
+        return jsonify({"error": "type must be learning, career, or habit"}), 400
+
+    try:
+        result = goal_researcher.research_and_build(
+            goal_type=goal_type,
+            goal_id=goal_id,
+            details=details,
+            deadline=goal.get("deadline"),
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e), "manual_mode": True}), 422
+
+
+@app.route("/api/goals/<int:goal_id>/blueprint", methods=["POST"])
+def save_blueprint(goal_id):
+    """Save a confirmed blueprint (from the wizard) and run the scheduler."""
+    import blueprint_scheduler
+    data = request.get_json(force=True)
+    if not data.get("blueprint_type") or not data.get("title"):
+        return jsonify({"error": "blueprint_type and title are required"}), 400
+
+    # Delete existing blueprint for this goal (wizard re-confirms)
+    existing = db.get_blueprint_by_goal(goal_id)
+    if existing:
+        conn = db.get_connection()
+        with conn:
+            conn.execute("DELETE FROM goal_blueprints WHERE goal_id = ?", (goal_id,))
+        conn.close()
+
+    units_data = data.get("units", [])
+    milestones_data = data.get("milestones", [])
+
+    bp = db.create_blueprint(
+        goal_id=goal_id,
+        blueprint_type=data["blueprint_type"],
+        title=data["title"],
+        source_info=data.get("source_info"),
+        total_units=len(units_data) or data.get("total_units", 0),
+        unit_label=data.get("unit_label", "unit"),
+        schedule_strategy=data.get("schedule_strategy", "even"),
+        difficulty_curve=data.get("difficulty_curve"),
+        estimated_pace_minutes=data.get("estimated_pace_minutes"),
+    )
+
+    # Create milestones and build index for unit linkage
+    ms_id_map: dict[int, int] = {}  # milestone list index → db id
+    for idx, ms in enumerate(milestones_data):
+        ms_row = db.create_milestone(
+            blueprint_id=bp["id"],
+            title=ms["title"],
+            description=ms.get("description"),
+            target_date=ms.get("target_date"),
+            sort_order=ms.get("sort_order", idx),
+        )
+        ms_id_map[idx] = ms_row["id"]
+
+    # Create units; resolve depends_on by unit_number→id mapping
+    unit_num_to_id: dict[int, int] = {}
+    for u in sorted(units_data, key=lambda x: x.get("unit_number", 0)):
+        ms_idx = u.get("milestone_index")
+        ms_id = ms_id_map.get(ms_idx) if ms_idx is not None else None
+        dep_num = u.get("depends_on_unit_number")
+        dep_id = unit_num_to_id.get(dep_num) if dep_num is not None else None
+        unit_row = db.create_blueprint_unit(
+            blueprint_id=bp["id"],
+            unit_number=u["unit_number"],
+            title=u["title"],
+            description=u.get("description"),
+            milestone_id=ms_id,
+            estimated_minutes=u.get("estimated_minutes"),
+            difficulty=u.get("difficulty", 1.0),
+            depends_on=dep_id,
+            metadata=u.get("metadata"),
+        )
+        unit_num_to_id[u["unit_number"]] = unit_row["id"]
+
+    # Create habit config if provided
+    if data.get("habit_config") and data["blueprint_type"] == "habit":
+        hc = data["habit_config"]
+        db.create_habit_config(
+            blueprint_id=bp["id"],
+            frequency=hc["frequency"],
+            progression_type=hc.get("progression_type", "constant"),
+            base_quantity=hc.get("base_quantity"),
+            current_quantity=hc.get("current_quantity"),
+            target_quantity=hc.get("target_quantity"),
+            quantity_unit=hc.get("quantity_unit"),
+            increment_amount=hc.get("increment_amount"),
+            increment_frequency=hc.get("increment_frequency", "weekly"),
+            custom_days=hc.get("custom_days"),
+        )
+
+    # Run scheduling algorithm
+    blueprint_scheduler.schedule_blueprint(bp["id"])
+
+    return jsonify(db.get_blueprint(bp["id"])), 201
+
+
+@app.route("/api/goals/<int:goal_id>/blueprint", methods=["GET"])
+def get_goal_blueprint(goal_id):
+    """Return a goal's blueprint with milestones, units, schedule status, and type-specific data."""
+    bp = db.get_blueprint_by_goal(goal_id)
+    if not bp:
+        return jsonify({"error": "No blueprint for this goal"}), 404
+    bp["schedule_status"] = db.get_blueprint_schedule_status(bp["id"])
+    bp["units"] = db.get_blueprint_units(bp["id"])
+    if bp.get("blueprint_type") == "habit":
+        bp["habit_config"] = db.get_habit_config(bp["id"])
+        bp["habit_streak"] = db.get_habit_streak(bp["id"])
+    elif bp.get("blueprint_type") == "career":
+        bp["pipeline"] = db.get_pipeline_entries(bp["id"])
+        bp["pipeline_stats"] = db.get_pipeline_stats(bp["id"])
+    return jsonify(bp)
+
+
+@app.route("/api/blueprints/<int:blueprint_id>", methods=["GET"])
+def get_blueprint(blueprint_id):
+    bp = db.get_blueprint(blueprint_id)
+    if not bp:
+        return jsonify({"error": "Blueprint not found"}), 404
+    bp["schedule_status"] = db.get_blueprint_schedule_status(blueprint_id)
+    return jsonify(bp)
+
+
+@app.route("/api/blueprints/<int:blueprint_id>", methods=["PUT"])
+def update_blueprint(blueprint_id):
+    data = request.get_json(force=True)
+    bp = db.update_blueprint(blueprint_id, **data)
+    if not bp:
+        return jsonify({"error": "Blueprint not found"}), 404
+    return jsonify(bp)
+
+
+@app.route("/api/blueprints/<int:blueprint_id>/reschedule", methods=["POST"])
+def reschedule_blueprint(blueprint_id):
+    import blueprint_scheduler
+    ok = blueprint_scheduler.reschedule_blueprint(blueprint_id)
+    if not ok:
+        return jsonify({"error": "Blueprint not found"}), 404
+    bp = db.get_blueprint(blueprint_id)
+    bp["schedule_status"] = db.get_blueprint_schedule_status(blueprint_id)
+    return jsonify(bp)
+
+
+@app.route("/api/blueprints/<int:blueprint_id>/units", methods=["GET"])
+def list_blueprint_units(blueprint_id):
+    status_filter = request.args.getlist("status") or None
+    units = db.get_blueprint_units(blueprint_id, status_filter=status_filter)
+    return jsonify(units)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Blueprint Units
+# ---------------------------------------------------------------------------
+
+@app.route("/api/units/<int:unit_id>/complete", methods=["PATCH"])
+def complete_unit(unit_id):
+    data = request.get_json(force=True) or {}
+    actual_minutes = data.get("actual_minutes")
+    unit = db.complete_blueprint_unit(unit_id, actual_minutes)
+    if not unit:
+        return jsonify({"error": "Unit not found"}), 404
+    return jsonify(unit)
+
+
+@app.route("/api/units/<int:unit_id>/skip", methods=["PATCH"])
+def skip_unit(unit_id):
+    unit = db.skip_blueprint_unit(unit_id)
+    if not unit:
+        return jsonify({"error": "Unit not found"}), 404
+    return jsonify(unit)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Habits
+# ---------------------------------------------------------------------------
+
+@app.route("/api/habits", methods=["GET"])
+def list_habits():
+    return jsonify(db.get_all_habits())
+
+
+@app.route("/api/habits/<int:blueprint_id>/log", methods=["PATCH"])
+def log_habit_today(blueprint_id):
+    """Log today's habit as done. Marks the scheduled unit complete and returns streak."""
+    import json as _json
+    data = request.get_json(force=True) or {}
+    actual_quantity = data.get("actual_quantity")
+    actual_minutes = data.get("actual_minutes")
+
+    unit = db.get_today_habit_unit(blueprint_id)
+    if not unit:
+        return jsonify({"error": "No pending unit found for today"}), 404
+
+    if actual_quantity is not None:
+        try:
+            meta = _json.loads(unit["metadata"]) if unit.get("metadata") else {}
+        except Exception:
+            meta = {}
+        meta["actual_quantity"] = actual_quantity
+        conn = db.get_connection()
+        with conn:
+            conn.execute("UPDATE blueprint_units SET metadata=? WHERE id=?",
+                         (_json.dumps(meta), unit["id"]))
+        conn.close()
+
+    completed = db.complete_blueprint_unit(unit["id"], actual_minutes=actual_minutes)
+    db.check_habit_progression()
+    streak = db.get_habit_streak(blueprint_id)
+    return jsonify({"unit": completed, "streak": streak})
+
+
+@app.route("/api/habits/<int:habit_config_id>/increment", methods=["POST"])
+def increment_habit(habit_config_id):
+    """Manually trigger a quantity increment for a progressive habit."""
+    hc = db.get_habit_config_by_id(habit_config_id)
+    if not hc:
+        return jsonify({"error": "Habit config not found"}), 404
+    if hc["target_quantity"] is None:
+        return jsonify({"error": "Habit is not progressive"}), 400
+    inc = hc.get("increment_amount") or 0
+    new_qty = min((hc["current_quantity"] or 0) + inc, hc["target_quantity"])
+    updated = db.update_habit_quantity(habit_config_id, new_qty)
+    return jsonify(updated)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Career Pipeline
+# ---------------------------------------------------------------------------
+
+@app.route("/api/career/pipeline", methods=["GET"])
+def list_pipeline():
+    blueprint_id = request.args.get("blueprint_id", type=int)
+    if not blueprint_id:
+        return jsonify({"error": "blueprint_id query param required"}), 400
+    return jsonify(db.get_pipeline_entries(blueprint_id))
+
+
+@app.route("/api/career/pipeline", methods=["POST"])
+def create_pipeline_entry():
+    data = request.get_json(force=True)
+    if not data.get("blueprint_id") or not data.get("entry_type") or not data.get("title"):
+        return jsonify({"error": "blueprint_id, entry_type, and title are required"}), 400
+    entry = db.create_pipeline_entry(
+        blueprint_id=data["blueprint_id"],
+        entry_type=data["entry_type"],
+        title=data["title"],
+        company=data.get("company"),
+        status=data.get("status"),
+        url=data.get("url"),
+        notes=data.get("notes"),
+        deadline=data.get("deadline"),
+        follow_up_date=data.get("follow_up_date"),
+    )
+    return jsonify(entry), 201
+
+
+@app.route("/api/career/pipeline/<int:entry_id>", methods=["PUT"])
+def update_pipeline_entry(entry_id):
+    data = request.get_json(force=True)
+    entry = db.update_pipeline_entry(entry_id, **data)
+    if not entry:
+        return jsonify({"error": "Entry not found"}), 404
+    return jsonify(entry)
+
+
+@app.route("/api/career/pipeline/stats", methods=["GET"])
+def pipeline_stats():
+    blueprint_id = request.args.get("blueprint_id", type=int)
+    if not blueprint_id:
+        return jsonify({"error": "blueprint_id query param required"}), 400
+    return jsonify(db.get_pipeline_stats(blueprint_id))
 
 
 # ---------------------------------------------------------------------------
