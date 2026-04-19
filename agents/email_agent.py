@@ -32,12 +32,15 @@ class EmailAgent(BaseAgent):
             if digest:
                 recent_digests.append({"date": d, "summary": digest.get("ai_summary", "")})
 
+        profile_block = db.get_profile_for_prompt()
+
         return {
             "today": today,
             "emails": [],  # will be populated via extra_input
             "active_goals": active_goals,
             "today_tasks": today_tasks,
             "recent_digests": recent_digests,
+            "profile_block": profile_block,
         }
 
     def build_prompt(self, context, extra_input=None):
@@ -48,6 +51,7 @@ class EmailAgent(BaseAgent):
         active_goals = context["active_goals"]
         today_tasks = context["today_tasks"]
         recent_digests = context["recent_digests"]
+        profile_block = context.get("profile_block", "")
 
         # Email blocks
         if emails:
@@ -85,8 +89,10 @@ class EmailAgent(BaseAgent):
                 digest_lines.append(f"- {d['date']}: {d['summary'][:150]}")
         digests_text = "\n".join(digest_lines) if digest_lines else "No previous digests."
 
-        return f"""{self.persona}
+        profile_section = f"\n{profile_block}\n" if profile_block else ""
 
+        return f"""{self.persona}
+{profile_section}
 ## Recent Emails (Last 24 Hours)
 {emails_text}
 

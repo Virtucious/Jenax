@@ -39,11 +39,14 @@ class ResearchAgent(BaseAgent):
         resources = db.get_learning_resources()
         recent_learning_tasks = db.get_recent_learning_tasks(days=7)
 
+        profile_block = db.get_profile_for_prompt()
+
         return {
             "today": today.isoformat(),
             "learning_goals": learning_goals,
             "resources": resources,
             "recent_learning_tasks": recent_learning_tasks,
+            "profile_block": profile_block,
         }
 
     def build_prompt(self, context, extra_input=None):
@@ -51,6 +54,7 @@ class ResearchAgent(BaseAgent):
         learning_goals = context["learning_goals"]
         resources = context["resources"]
         recent_learning_tasks = context["recent_learning_tasks"]
+        profile_block = context.get("profile_block", "")
 
         # Learning goals text
         if learning_goals:
@@ -101,8 +105,10 @@ class ResearchAgent(BaseAgent):
                     pass
         deadline_text = "\n".join(deadline_lines) if deadline_lines else "No learning deadlines set."
 
-        return f"""{self.persona}
+        profile_section = f"\n{profile_block}\n" if profile_block else ""
 
+        return f"""{self.persona}
+{profile_section}
 ## Learning Goals
 {goals_text}
 

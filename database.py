@@ -229,6 +229,59 @@ def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS user_profile (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                confidence REAL DEFAULT 0.5,
+                data_points INTEGER DEFAULT 1,
+                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(category, key)
+            );
+
+            CREATE TABLE IF NOT EXISTS reflection_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                suggestion TEXT NOT NULL,
+                suggestion_category TEXT,
+                related_goal_id INTEGER REFERENCES goals(id) ON DELETE SET NULL,
+                times_given INTEGER DEFAULT 1,
+                times_followed INTEGER DEFAULT 0,
+                first_given DATE NOT NULL,
+                last_given DATE NOT NULL,
+                follow_through_rate REAL DEFAULT 0.0,
+                status TEXT DEFAULT 'active' CHECK(status IN ('active', 'resolved', 'escalated', 'dropped')),
+                escalation_level INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS energy_curve (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_defined BOOLEAN DEFAULT 0,
+                slot_1_label TEXT DEFAULT 'Early Morning',
+                slot_1_energy TEXT DEFAULT 'medium',
+                slot_2_label TEXT DEFAULT 'Morning',
+                slot_2_energy TEXT DEFAULT 'high',
+                slot_3_label TEXT DEFAULT 'Early Afternoon',
+                slot_3_energy TEXT DEFAULT 'low',
+                slot_4_label TEXT DEFAULT 'Late Afternoon',
+                slot_4_energy TEXT DEFAULT 'medium',
+                slot_5_label TEXT DEFAULT 'Evening',
+                slot_5_energy TEXT DEFAULT 'medium',
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS spaced_reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                blueprint_unit_id INTEGER REFERENCES blueprint_units(id) ON DELETE CASCADE,
+                review_number INTEGER DEFAULT 1,
+                scheduled_date DATE NOT NULL,
+                completed BOOLEAN DEFAULT 0,
+                completed_at DATETIME,
+                quality_rating INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
     # Schema migrations — safe to re-run
@@ -236,6 +289,10 @@ def init_db():
         "ALTER TABLE daily_tasks ADD COLUMN carried_from DATE DEFAULT NULL",
         "ALTER TABLE daily_reflections ADD COLUMN mood TEXT CHECK(mood IN ('great', 'good', 'okay', 'rough', 'bad')) DEFAULT NULL",
         "ALTER TABLE daily_tasks ADD COLUMN blueprint_unit_id INTEGER REFERENCES blueprint_units(id) ON DELETE SET NULL",
+        "ALTER TABLE daily_tasks ADD COLUMN energy_level TEXT DEFAULT NULL",
+        "ALTER TABLE daily_tasks ADD COLUMN suggested_slot TEXT DEFAULT NULL",
+        "ALTER TABLE daily_tasks ADD COLUMN task_type TEXT DEFAULT 'normal'",
+        "ALTER TABLE daily_tasks ADD COLUMN spaced_review_id INTEGER REFERENCES spaced_reviews(id) ON DELETE SET NULL",
     ]
     for sql in migrations:
         try:
@@ -342,16 +399,22 @@ def delete_goal(goal_id):
 
 def create_task(title, description=None, priority="medium", goal_id=None,
                 date_str=None, source="manual", estimated_minutes=None,
-                carried_from=None, blueprint_unit_id=None):
+                carried_from=None, blueprint_unit_id=None,
+                energy_level=None, suggested_slot=None,
+                task_type="normal", spaced_review_id=None):
     if date_str is None:
         date_str = date.today().isoformat()
     conn = get_connection()
     with conn:
         cur = conn.execute(
             """INSERT INTO daily_tasks
-               (title, description, priority, goal_id, date, source, estimated_minutes, carried_from, blueprint_unit_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (title, description, priority, goal_id, date_str, source, estimated_minutes, carried_from, blueprint_unit_id),
+               (title, description, priority, goal_id, date, source, estimated_minutes,
+                carried_from, blueprint_unit_id, energy_level, suggested_slot,
+                task_type, spaced_review_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (title, description, priority, goal_id, date_str, source, estimated_minutes,
+             carried_from, blueprint_unit_id, energy_level, suggested_slot,
+             task_type, spaced_review_id),
         )
         task_id = cur.lastrowid
     conn.close()
@@ -843,6 +906,28 @@ def get_previous_weekly_review(before_week_start):
             except Exception:
                 pass
     return d
+
+
+def get_recent_weekly_reviews(before_week_start, limit=4):
+    """Return up to limit weekly reviews before before_week_start, newest first."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT * FROM weekly_reviews WHERE week_start < ?
+           ORDER BY week_start DESC LIMIT ?""",
+        (before_week_start, limit),
+    ).fetchall()
+    conn.close()
+    result = []
+    for row in rows:
+        d = dict(row)
+        for field in ("goals_progressed", "goals_neglected", "focus_areas"):
+            if d.get(field):
+                try:
+                    d[field] = json.loads(d[field])
+                except Exception:
+                    pass
+        result.append(d)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1499,6 +1584,12 @@ def complete_blueprint_unit(unit_id, actual_minutes=None):
         conn.execute("SELECT * FROM blueprint_units WHERE id=?", (unit_id,)).fetchone()
     )
     conn.close()
+
+    # Only schedule reviews for learning blueprints
+    bp = get_blueprint(unit["blueprint_id"])
+    if bp and bp.get("blueprint_type") == "learning":
+        schedule_reviews(unit_id, date.today())
+
     return result
 
 
@@ -1733,6 +1824,588 @@ def update_pipeline_entry(entry_id, **fields):
         conn.execute(f"UPDATE career_pipeline SET {set_clause} WHERE id = ?", values)
     conn.close()
     return get_pipeline_entry(entry_id)
+
+
+# ---------------------------------------------------------------------------
+# User Profile
+# ---------------------------------------------------------------------------
+
+def get_user_profile():
+    """Return profile as {category: {key: {value, confidence, data_points, last_updated}}}."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM user_profile ORDER BY category, key"
+    ).fetchall()
+    conn.close()
+    profile = {}
+    for r in rows:
+        cat = r["category"]
+        if cat not in profile:
+            profile[cat] = {}
+        profile[cat][r["key"]] = {
+            "value": r["value"],
+            "confidence": r["confidence"],
+            "data_points": r["data_points"],
+            "last_updated": r["last_updated"],
+        }
+    return profile
+
+
+def upsert_profile_entry(category, key, value, confidence=0.5, data_points=1):
+    """Insert or update a single profile entry."""
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            """INSERT INTO user_profile (category, key, value, confidence, data_points, last_updated)
+               VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(category, key) DO UPDATE SET
+                   value = excluded.value,
+                   confidence = excluded.confidence,
+                   data_points = excluded.data_points,
+                   last_updated = CURRENT_TIMESTAMP""",
+            (category, key, value, confidence, data_points),
+        )
+    conn.close()
+
+
+def get_profile_value(category, key, default=None):
+    """Return the value for a profile key, or default if not found."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT value FROM user_profile WHERE category = ? AND key = ?",
+        (category, key),
+    ).fetchone()
+    conn.close()
+    return row["value"] if row else default
+
+
+def get_profile_for_prompt():
+    """Return a formatted profile text block for injection into agent prompts.
+    Returns empty string if no profile data exists yet."""
+    profile = get_user_profile()
+    if not profile:
+        return ""
+
+    total_entries = sum(len(keys) for keys in profile.values())
+    if total_entries < 3:
+        return "\n## User Profile\n(Still learning your patterns — not enough data yet)\n"
+
+    _category_labels = {
+        "work_style": "Work Style",
+        "goal_tendencies": "Goal Tendencies",
+        "scheduling": "Scheduling",
+        "learning": "Learning",
+        "emotional": "Emotional",
+    }
+    _key_labels = {
+        "peak_hours": "Peak hours",
+        "max_deep_work_hours": "Max deep work hours",
+        "max_tasks_per_day": "Max tasks per day",
+        "preferred_task_sequence": "Task sequence preference",
+        "focus_duration_minutes": "Focus duration (min)",
+        "context_switch_cost": "Context switching cost",
+        "avoidance_pattern": "Completion rate by goal type",
+        "procrastination_triggers": "Tends to avoid",
+        "momentum_builder": "Motivated by",
+        "abandonment_risk_signals": "Abandonment risk signals",
+        "day_ratings": "Day ratings",
+        "best_streak_day": "Best day",
+        "worst_day": "Worst day",
+        "overload_threshold": "Overload threshold (tasks)",
+        "recovery_pattern": "After a bad day",
+        "retention_strength": "Retention strength",
+        "preferred_learning_format": "Learning format",
+        "review_compliance": "Review compliance rate",
+        "best_learning_time": "Best learning time",
+        "chapters_before_fatigue": "Chapters before fatigue",
+        "mood_trend": "Current mood trend",
+        "mood_productivity_correlation": "Mood-productivity correlation",
+        "bad_day_response": "Bad day response",
+        "praise_effectiveness": "Encouragement effectiveness",
+        "accountability_response": "Responds to accountability",
+    }
+
+    lines = ["## User Profile (what we know about this person)\n"]
+    for category, keys in profile.items():
+        label = _category_labels.get(category, category.replace("_", " ").title())
+        lines.append(f"{label}:")
+        for key, data in keys.items():
+            confidence_pct = int(data["confidence"] * 100)
+            key_label = _key_labels.get(key, key.replace("_", " ").title())
+            value = data["value"]
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, dict):
+                    value = ", ".join(f"{k}: {v}" for k, v in parsed.items())
+                elif isinstance(parsed, list):
+                    value = ", ".join(str(v) for v in parsed)
+            except Exception:
+                pass
+            lines.append(f"- {key_label}: {value} (confidence: {confidence_pct}%)")
+        lines.append("")
+
+    lines.append(
+        "Use this profile to personalize your output. "
+        "Low-confidence items are hypotheses; high-confidence items are established patterns."
+    )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Reflection Memory (Upgrade 3)
+# ---------------------------------------------------------------------------
+
+def get_active_suggestions(limit=10):
+    """Return active suggestions ordered by escalation_level DESC."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT * FROM reflection_memory
+           WHERE status IN ('active', 'escalated')
+           ORDER BY escalation_level DESC, last_given DESC
+           LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_suggestion(suggestion_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM reflection_memory WHERE id = ?", (suggestion_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def create_suggestion(suggestion_text, category=None, related_goal_id=None, given_date=None):
+    """Create a new suggestion entry."""
+    today = given_date or date.today().isoformat()
+    conn = get_connection()
+    with conn:
+        cur = conn.execute(
+            """INSERT INTO reflection_memory
+               (suggestion, suggestion_category, related_goal_id,
+                times_given, times_followed, first_given, last_given,
+                follow_through_rate, status, escalation_level)
+               VALUES (?, ?, ?, 1, 0, ?, ?, 0.0, 'active', 0)""",
+            (suggestion_text, category, related_goal_id, today, today),
+        )
+        sid = cur.lastrowid
+    conn.close()
+    return get_suggestion(sid)
+
+
+def update_suggestion_after_review(suggestion_id, followed, new_escalation_level=None,
+                                    given_date=None):
+    """Increment counters, recompute follow_through_rate, optionally update escalation."""
+    s = get_suggestion(suggestion_id)
+    if not s:
+        return None
+    today = given_date or date.today().isoformat()
+    new_times_given = s["times_given"] + 1
+    new_times_followed = s["times_followed"] + (1 if followed else 0)
+    rate = new_times_followed / new_times_given
+
+    # Auto-escalate if not followed repeatedly
+    level = s["escalation_level"]
+    if new_escalation_level is not None:
+        level = max(level, new_escalation_level)
+    elif not followed and new_times_given >= 3 and rate < 0.3:
+        level = min(3, level + 1)
+
+    new_status = "escalated" if level >= 1 else "active"
+
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            """UPDATE reflection_memory
+               SET times_given=?, times_followed=?, follow_through_rate=?,
+                   escalation_level=?, status=?, last_given=?
+               WHERE id=?""",
+            (new_times_given, new_times_followed, rate, level, new_status, today, suggestion_id),
+        )
+    conn.close()
+    return get_suggestion(suggestion_id)
+
+
+def resolve_suggestion(suggestion_id):
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            "UPDATE reflection_memory SET status='resolved' WHERE id=?", (suggestion_id,)
+        )
+    conn.close()
+
+
+def drop_suggestion(suggestion_id):
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            "UPDATE reflection_memory SET status='dropped' WHERE id=?", (suggestion_id,)
+        )
+    conn.close()
+
+
+def reset_suggestion_escalation(suggestion_id):
+    """Reset escalation to 0 when user confirms the goal is still important."""
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            "UPDATE reflection_memory SET escalation_level=0, status='active' WHERE id=?",
+            (suggestion_id,),
+        )
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Energy Curve
+# ---------------------------------------------------------------------------
+
+_ENERGY_CURVE_DEFAULTS = {
+    "id": None,
+    "user_defined": False,
+    "slot_1_label": "Early Morning",
+    "slot_1_energy": "medium",
+    "slot_2_label": "Morning",
+    "slot_2_energy": "high",
+    "slot_3_label": "Early Afternoon",
+    "slot_3_energy": "low",
+    "slot_4_label": "Late Afternoon",
+    "slot_4_energy": "medium",
+    "slot_5_label": "Evening",
+    "slot_5_energy": "medium",
+    "updated_at": None,
+}
+
+
+def get_energy_curve():
+    """Return the saved energy curve row, or defaults if none exists."""
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM energy_curve ORDER BY id DESC LIMIT 1").fetchone()
+    conn.close()
+    return dict(row) if row else dict(_ENERGY_CURVE_DEFAULTS)
+
+
+def upsert_energy_curve(user_defined=True, slot_1_energy="medium", slot_2_energy="high",
+                         slot_3_energy="low", slot_4_energy="medium", slot_5_energy="medium"):
+    """Save energy curve settings (always a single row)."""
+    conn = get_connection()
+    existing = conn.execute("SELECT id FROM energy_curve LIMIT 1").fetchone()
+    if existing:
+        with conn:
+            conn.execute(
+                """UPDATE energy_curve
+                   SET user_defined=?, slot_1_energy=?, slot_2_energy=?,
+                       slot_3_energy=?, slot_4_energy=?, slot_5_energy=?,
+                       updated_at=CURRENT_TIMESTAMP
+                   WHERE id=?""",
+                (user_defined, slot_1_energy, slot_2_energy, slot_3_energy,
+                 slot_4_energy, slot_5_energy, existing["id"]),
+            )
+    else:
+        with conn:
+            conn.execute(
+                """INSERT INTO energy_curve
+                   (user_defined, slot_1_energy, slot_2_energy,
+                    slot_3_energy, slot_4_energy, slot_5_energy)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (user_defined, slot_1_energy, slot_2_energy,
+                 slot_3_energy, slot_4_energy, slot_5_energy),
+            )
+    conn.close()
+    return get_energy_curve()
+
+
+def detect_energy_curve_from_history():
+    """Analyze completed_at timestamps to infer energy levels per time slot.
+    Returns {1..5: energy_str} or None if fewer than 10 completions in last 30 days."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT completed_at FROM daily_tasks
+           WHERE completed = 1 AND completed_at IS NOT NULL
+             AND date >= date('now', '-30 days')"""
+    ).fetchall()
+    conn.close()
+
+    slot_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    for r in rows:
+        try:
+            hour = int(r["completed_at"][11:13])
+            if 6 <= hour < 9:
+                slot_counts[1] += 1
+            elif 9 <= hour < 12:
+                slot_counts[2] += 1
+            elif 12 <= hour < 15:
+                slot_counts[3] += 1
+            elif 15 <= hour < 18:
+                slot_counts[4] += 1
+            elif 18 <= hour < 21:
+                slot_counts[5] += 1
+        except Exception:
+            pass
+
+    total = sum(slot_counts.values())
+    if total < 10:
+        return None
+
+    max_count = max(slot_counts.values()) or 1
+    result = {}
+    for slot, count in slot_counts.items():
+        ratio = count / max_count
+        if ratio >= 0.6:
+            result[slot] = "high"
+        elif ratio >= 0.25:
+            result[slot] = "medium"
+        else:
+            result[slot] = "low"
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Spaced Repetition (Upgrade 4)
+# ---------------------------------------------------------------------------
+
+def schedule_reviews(unit_id, completion_date):
+    """Schedule spaced review sessions after a learning unit is completed."""
+    retention = get_profile_value("learning", "retention_strength", default="moderate")
+    try:
+        compliance = float(get_profile_value("learning", "review_compliance", default="0.5"))
+    except (TypeError, ValueError):
+        compliance = 0.5
+
+    if retention == "weak":
+        intervals = [1, 2, 5, 10, 21]
+    elif retention == "strong":
+        intervals = [1, 4, 10, 21, 45]
+    else:
+        intervals = [1, 3, 7, 14, 30]
+
+    if compliance < 0.3:
+        intervals = intervals[:3]
+
+    conn = get_connection()
+    # Don't create duplicate reviews for this unit
+    existing = conn.execute(
+        "SELECT COUNT(*) FROM spaced_reviews WHERE blueprint_unit_id=?", (unit_id,)
+    ).fetchone()[0]
+    if existing > 0:
+        conn.close()
+        return
+
+    with conn:
+        for i, days in enumerate(intervals):
+            review_date = (completion_date + timedelta(days=days)).isoformat()
+            conn.execute(
+                """INSERT INTO spaced_reviews (blueprint_unit_id, review_number, scheduled_date)
+                   VALUES (?, ?, ?)""",
+                (unit_id, i + 1, review_date),
+            )
+    conn.close()
+
+
+def get_due_spaced_reviews(date_str=None, limit=2):
+    """Return uncompleted reviews due on or before date_str, capped at limit."""
+    if date_str is None:
+        date_str = date.today().isoformat()
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT sr.*, u.title AS unit_title, u.description AS unit_description,
+                  u.metadata AS unit_metadata,
+                  b.title AS blueprint_title, b.blueprint_type,
+                  g.title AS goal_title
+           FROM spaced_reviews sr
+           JOIN blueprint_units u ON sr.blueprint_unit_id = u.id
+           JOIN goal_blueprints b ON u.blueprint_id = b.id
+           JOIN goals g ON b.goal_id = g.id
+           WHERE sr.completed = 0 AND sr.scheduled_date <= ?
+             AND b.status = 'active'
+           ORDER BY sr.quality_rating ASC NULLS FIRST, sr.scheduled_date ASC
+           LIMIT ?""",
+        (date_str, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def complete_spaced_review(review_id, quality_rating):
+    """Mark a review complete and reschedule if recall was poor."""
+    conn = get_connection()
+    review_row = conn.execute(
+        "SELECT * FROM spaced_reviews WHERE id=?", (review_id,)
+    ).fetchone()
+    if not review_row:
+        conn.close()
+        return None
+    review = dict(review_row)
+
+    now = datetime.utcnow().isoformat()
+    with conn:
+        conn.execute(
+            "UPDATE spaced_reviews SET completed=1, completed_at=?, quality_rating=? WHERE id=?",
+            (now, quality_rating, review_id),
+        )
+
+    # Adjust the next scheduled review for this unit based on quality
+    next_review = conn.execute(
+        """SELECT * FROM spaced_reviews
+           WHERE blueprint_unit_id=? AND completed=0
+           ORDER BY review_number ASC LIMIT 1""",
+        (review["blueprint_unit_id"],),
+    ).fetchone()
+
+    if next_review:
+        next_review = dict(next_review)
+        try:
+            next_date = date.fromisoformat(next_review["scheduled_date"])
+            today = date.today()
+            current_interval = (next_date - today).days
+
+            if quality_rating == 1:
+                new_date = today + timedelta(days=1)
+            elif quality_rating == 2:
+                new_interval = max(1, int(current_interval * 0.5))
+                new_date = today + timedelta(days=new_interval)
+            elif quality_rating == 5:
+                new_interval = int(current_interval * 1.5)
+                new_date = today + timedelta(days=new_interval)
+            else:
+                new_date = next_date
+
+            with conn:
+                conn.execute(
+                    "UPDATE spaced_reviews SET scheduled_date=? WHERE id=?",
+                    (new_date.isoformat(), next_review["id"]),
+                )
+        except Exception:
+            pass
+
+    conn.close()
+    return review
+
+
+def get_spaced_review_compliance(days=30):
+    """Return completed/scheduled ratio for spaced reviews in the last N days."""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT
+               COUNT(*) AS total,
+               SUM(completed) AS done
+           FROM spaced_reviews
+           WHERE scheduled_date >= ?""",
+        (cutoff,),
+    ).fetchone()
+    conn.close()
+    if not row or not row["total"]:
+        return None
+    return round(row["done"] / row["total"], 3)
+
+
+# Load Balancing (Upgrade 5)
+# ---------------------------------------------------------------------------
+
+def calculate_daily_capacity(target_date=None):
+    """Estimate productive minutes for target_date, accounting for profile + history.
+
+    Returns:
+        {total_capacity_minutes, already_scheduled_minutes, remaining_minutes,
+         day_quality ('high'|'medium'|'low'), notes (str or None)}
+    """
+    if target_date is None:
+        target_date = date.today()
+
+    base_capacity = 240  # 4-hour baseline
+
+    # Day-of-week factor from profile (or fall back to historical patterns)
+    _abbrevs = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+    day_abbrev = _abbrevs[target_date.weekday()]
+    day_rating = 0.7
+
+    try:
+        day_ratings_json = get_profile_value("scheduling", "day_ratings")
+        if day_ratings_json:
+            day_ratings = json.loads(day_ratings_json)
+            day_rating = float(day_ratings.get(day_abbrev, 0.7))
+        else:
+            patterns = get_day_of_week_patterns()
+            day_name = target_date.strftime("%A")
+            match = next((p for p in patterns if p["day_name"] == day_name), None)
+            if match and match.get("avg_pct"):
+                day_rating = match["avg_pct"] / 100.0
+    except Exception:
+        pass
+
+    capacity = base_capacity * day_rating
+
+    # Recovery factor — check yesterday's load vs overload threshold
+    recovery_needed = False
+    recovery_pattern = get_profile_value("scheduling", "recovery_pattern", default="bounces_back")
+    if recovery_pattern == "after_bad_day_needs_easy_day":
+        try:
+            overload_threshold = int(get_profile_value("scheduling", "overload_threshold", default="5"))
+        except (TypeError, ValueError):
+            overload_threshold = 5
+        yesterday = (target_date - timedelta(days=1)).isoformat()
+        conn = get_connection()
+        yesterday_total = conn.execute(
+            "SELECT COUNT(*) FROM daily_tasks WHERE date = ?", (yesterday,)
+        ).fetchone()[0]
+        conn.close()
+        if yesterday_total > overload_threshold:
+            recovery_needed = True
+            capacity *= 0.6
+
+    # Mood factor
+    mood_trend = get_profile_value("emotional", "mood_trend", default="stable")
+    if mood_trend == "declining":
+        capacity *= 0.8
+
+    # Streak factor (last 3 days in history, ordered most-recent first)
+    streak_broke = False
+    history = get_recent_task_history(days=5)
+    recent = [h for h in history if h["date"] < target_date.isoformat()][:3]
+    if len(recent) >= 3:
+        rates = []
+        for h in recent:
+            total = h.get("total", 0)
+            done = h.get("completed_count") or 0
+            rates.append(done / total if total > 0 else 0.0)
+        if all(r >= 0.7 for r in rates):
+            capacity = min(capacity * 1.05, base_capacity * 1.1)
+        elif rates[0] < 0.5 and rates[1] >= 0.7:
+            streak_broke = True
+            capacity *= 0.9
+
+    # Already-scheduled minutes for target_date
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT COALESCE(SUM(estimated_minutes), 0) AS total FROM daily_tasks WHERE date = ?",
+        (target_date.isoformat(),),
+    ).fetchone()
+    conn.close()
+    existing_minutes = int(row["total"]) if row else 0
+
+    remaining = max(0, int(capacity) - existing_minutes)
+    day_quality = "high" if day_rating > 0.7 else "medium" if day_rating > 0.5 else "low"
+
+    notes = []
+    if recovery_needed:
+        notes.append("Recovery day — keep it light")
+    if mood_trend == "declining":
+        notes.append("Mood declining — reduce expectations")
+    if streak_broke:
+        notes.append("Streak just broke — make today easy to rebuild")
+    if day_quality == "low" and not recovery_needed:
+        notes.append(f"{target_date.strftime('%A')}s are historically low-output for you")
+
+    return {
+        "total_capacity_minutes": int(capacity),
+        "already_scheduled_minutes": existing_minutes,
+        "remaining_minutes": remaining,
+        "day_quality": day_quality,
+        "notes": "; ".join(notes) if notes else None,
+    }
 
 
 def get_pipeline_stats(blueprint_id):

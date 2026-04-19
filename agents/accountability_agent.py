@@ -35,6 +35,8 @@ class AccountabilityAgent(BaseAgent):
         # Day-of-week patterns
         dow_patterns = db.get_day_of_week_patterns()
 
+        profile_block = db.get_profile_for_prompt()
+
         return {
             "today": today.isoformat(),
             "active_goals": active_goals,
@@ -44,6 +46,7 @@ class AccountabilityAgent(BaseAgent):
             "previous_insights": previous_insights,
             "goal_activity": goal_activity,
             "dow_patterns": dow_patterns,
+            "profile_block": profile_block,
         }
 
     def build_prompt(self, context, extra_input=None):
@@ -55,6 +58,7 @@ class AccountabilityAgent(BaseAgent):
         previous_insights = context["previous_insights"]
         goal_activity = context["goal_activity"]
         dow_patterns = context["dow_patterns"]
+        profile_block = context.get("profile_block", "")
 
         # Goal health report
         goal_lines = []
@@ -103,8 +107,10 @@ class AccountabilityAgent(BaseAgent):
             prev_lines.append(f"- [{ins['insight_type']}] {ins['title']} (created: {ins['created_at'][:10]})")
         prev_text = "\n".join(prev_lines) if prev_lines else "None."
 
-        return f"""{self.persona}
+        profile_section = f"\n{profile_block}\n" if profile_block else ""
 
+        return f"""{self.persona}
+{profile_section}
 ## Goal Health Report
 {goals_text}
 

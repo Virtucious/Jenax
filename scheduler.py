@@ -86,6 +86,12 @@ def _start_scheduler():
         id="data_cleanup",
         replace_existing=True,
     )
+    scheduler.add_job(
+        weekly_profile_build,
+        CronTrigger(day_of_week="sun", hour=10, minute=0, timezone=tz),
+        id="weekly_profile_build",
+        replace_existing=True,
+    )
 
     scheduler.start()
     logger.info("Scheduler started.")
@@ -143,6 +149,22 @@ def scheduled_email_scan():
         _run_email_scan_and_alert(hours=4)
     except Exception as e:
         logger.error(f"scheduled_email_scan error: {e}")
+
+
+def weekly_profile_build():
+    """Analyze 30 days of behavioral data and update the user profile."""
+    try:
+        import profile_builder
+        result = profile_builder.build_user_profile()
+        if result.get("skipped"):
+            logger.info(f"weekly_profile_build: skipped — {result.get('reason')}")
+        else:
+            logger.info(
+                f"weekly_profile_build: {result.get('updates_applied', 0)} entries updated. "
+                f"Changes: {result.get('notable_changes', [])}"
+            )
+    except Exception as e:
+        logger.error(f"weekly_profile_build error: {e}")
 
 
 def data_cleanup():
@@ -272,13 +294,14 @@ def get_status():
 
 def trigger_job(job_id):
     """Manually trigger a scheduled job by id."""
-    allowed = {"morning_routine", "evening_routine", "email_scan"}
+    allowed = {"morning_routine", "evening_routine", "email_scan", "weekly_profile_build"}
     if job_id not in allowed:
         return False
     job_map = {
         "morning_routine": morning_routine,
         "evening_routine": evening_routine,
         "email_scan": scheduled_email_scan,
+        "weekly_profile_build": weekly_profile_build,
     }
     try:
         job_map[job_id]()

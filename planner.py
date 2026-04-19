@@ -224,6 +224,10 @@ def generate_daily_plan():
                 date_str=today_str,
                 source="ai",
                 estimated_minutes=t.get("estimated_minutes"),
+                energy_level=t.get("energy_level"),
+                suggested_slot=t.get("suggested_slot"),
+                task_type=t.get("task_type", "normal"),
+                spaced_review_id=t.get("spaced_review_id"),
             )
             inserted.append(task)
 
@@ -283,6 +287,10 @@ def _generate_daily_plan_legacy():
             date_str=today_str,
             source="ai",
             estimated_minutes=t.get("estimated_minutes"),
+            energy_level=t.get("energy_level"),
+            suggested_slot=t.get("suggested_slot"),
+            task_type=t.get("task_type", "normal"),
+            spaced_review_id=t.get("spaced_review_id"),
         )
         inserted.append(task)
 
@@ -333,6 +341,35 @@ def generate_daily_review(notes=None, mood=None, target_date=None):
         except Exception:
             yesterday_summary = yesterday_reflection["ai_summary"]
 
+    # Load active suggestions for escalation tracking
+    active_suggestions = db.get_active_suggestions()
+    suggestion_history_block = ""
+    if active_suggestions:
+        lines = ["## Suggestion History (track follow-through)"]
+        for s in active_suggestions:
+            pct = round(s["follow_through_rate"] * 100)
+            lines.append(
+                f'[id:{s["id"]}] "{s["suggestion"]}" '
+                f'— given {s["times_given"]}x, followed {s["times_followed"]}x ({pct}%), '
+                f'escalation level: {s["escalation_level"]}, last given: {s["last_given"]}'
+            )
+        suggestion_history_block = "\n".join(lines)
+
+    escalation_rules = """
+## Suggestion Tracking Rules
+For each suggestion in "Suggestion History":
+- Determine if the user followed it today (check completed tasks for evidence)
+- If followed (follow_through_rate would be > 0.7 after this): mark resolved
+- If NOT followed: it will be repeated; if given 3+ times with < 30% follow-through, escalate
+- escalation_level 1 = nudge (more specific about why it matters)
+- escalation_level 2 = direct question (ask what's blocking them, give response options)
+- escalation_level 3 = intervention (propose concrete alternatives: break down, change deadline, pause, drop)
+
+For NEW suggestions this review:
+- Be specific and actionable ("Start tomorrow with X before checking email", not "focus on Y")
+- Limit to 2 new suggestions max
+- Include related_goal_id if the suggestion relates to a specific goal""" if active_suggestions else ""
+
     prompt = f"""You are a thoughtful productivity coach reviewing someone's day. Be honest but encouraging. Don't sugarcoat, but don't be harsh.
 
 ## Today's Results
@@ -354,24 +391,43 @@ Tasks completed: {len(completed)}/{len(tasks)}
 ### 7-Day completion trend:
 {trend_text}
 
+{suggestion_history_block}
+{escalation_rules}
+
 ## Instructions
 1. In 2-3 sentences, reflect on how the day went. Reference specific tasks.
 2. If high-priority tasks were skipped, gently note why that matters.
 3. Note any patterns you see in the 7-day trend (improving? declining? inconsistent?)
 4. Suggest 1-2 specific adjustments for tomorrow.
+5. For each suggestion in the history, determine if it was followed today.
 
 Respond ONLY with valid JSON:
 {{
   "reflection": "Your 2-3 sentence reflection on the day",
   "patterns_noticed": "Any patterns from the 7-day trend, or null",
   "tomorrow_suggestions": ["suggestion 1", "suggestion 2"],
-  "encouragement": "One short encouraging sentence"
+  "encouragement": "One short encouraging sentence",
+  "suggestion_tracking": [
+    {{
+      "suggestion_text": "the suggestion text",
+      "category": "task_prioritization|goal_focus|habit|workload|emotional",
+      "is_new": true,
+      "escalation_level": 0,
+      "previous_id": null,
+      "related_goal_id": null,
+      "followed": null
+    }}
+  ],
+  "resolved_suggestions": []
 }}"""
 
     try:
         data, _ = _call_gemini_with_retry(prompt)
     except Exception as e:
         return {"error": f"Failed to generate review: {str(e)}"}
+
+    # Process suggestion tracking
+    _process_suggestion_tracking(data, target_date)
 
     # Save to daily_reflections
     done_count = len(completed)
@@ -386,6 +442,36 @@ Respond ONLY with valid JSON:
     )
 
     return data
+
+
+def _process_suggestion_tracking(review_data, review_date):
+    """Persist suggestion_tracking and resolved_suggestions from the AI review."""
+    for sid in review_data.get("resolved_suggestions", []):
+        try:
+            db.resolve_suggestion(int(sid))
+        except Exception:
+            pass
+
+    for item in review_data.get("suggestion_tracking", []):
+        try:
+            if item.get("is_new"):
+                db.create_suggestion(
+                    suggestion_text=item["suggestion_text"],
+                    category=item.get("category"),
+                    related_goal_id=item.get("related_goal_id"),
+                    given_date=review_date,
+                )
+            else:
+                prev_id = item.get("previous_id")
+                if prev_id:
+                    db.update_suggestion_after_review(
+                        suggestion_id=int(prev_id),
+                        followed=bool(item.get("followed")),
+                        new_escalation_level=item.get("escalation_level"),
+                        given_date=review_date,
+                    )
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -409,6 +495,7 @@ def generate_weekly_review(week_start=None):
 
     active_goals = db.get_active_goals_flat()
     prev_review = db.get_previous_weekly_review(week_start_str)
+    recent_reviews = db.get_recent_weekly_reviews(week_start_str, limit=4)
 
     # Group tasks by date
     from collections import defaultdict
@@ -486,6 +573,27 @@ def generate_weekly_review(week_start=None):
         except Exception:
             prev_summary = prev_review["ai_review"][:200]
 
+    # Build cross-week context for the narrative
+    cross_week_lines = []
+    for r in recent_reviews:
+        try:
+            parsed = json.loads(r["ai_review"])
+        except Exception:
+            parsed = {}
+        summary = parsed.get("week_summary", "")[:200]
+        trend = parsed.get("overall_trend", "unknown")
+        wins = parsed.get("wins", [])
+        concerns = parsed.get("concerns", [])
+        cross_week_lines.append(
+            f"Week of {r['week_start']} (completion: {round((r['completion_rate'] or 0) * 100)}%, trend: {trend}):\n"
+            f"  Summary: {summary}\n"
+            f"  Wins: {'; '.join(wins[:2]) or 'none'}\n"
+            f"  Concerns: {'; '.join(concerns[:2]) or 'none'}"
+        )
+    cross_week_context = "\n\n".join(cross_week_lines) if cross_week_lines else "No previous reviews available."
+
+    profile_block = db.get_profile_for_prompt()
+
     total_tasks = len(tasks)
     completed_tasks = sum(1 for t in tasks if t["completed"])
     completion_rate = round(completed_tasks / total_tasks, 3) if total_tasks else 0.0
@@ -506,12 +614,18 @@ def generate_weekly_review(week_start=None):
 ### Previous Week's Summary (for trend):
 {prev_summary}
 
+### Previous Weekly Reviews (up to 4 weeks back):
+{cross_week_context}
+
+{profile_block}
+
 ## Instructions:
 1. Summarize the week in 3-4 sentences. Be specific about what went well and what didn't.
 2. Identify the top 2-3 goals that progressed most.
 3. Flag any goals that are being consistently neglected (this week AND last week).
 4. Note behavioral patterns: does the user complete more early in the week? Do they skip certain types of tasks?
 5. Recommend 2-3 focus areas for next week, prioritizing neglected goals.
+6. Write a narrative arc (3-5 sentences) connecting the last several weeks into a story. Reference specific data. Connect cause and effect across weeks. End with one actionable insight. If fewer than 2 previous reviews exist, write null for the narrative field. Adapt the tone to the user's accountability_response preference if known.
 
 Respond ONLY with valid JSON:
 {{
@@ -519,6 +633,7 @@ Respond ONLY with valid JSON:
   "wins": ["specific win 1", "specific win 2"],
   "concerns": ["concern 1 with specific goal reference", "concern 2"],
   "patterns": "Behavioral pattern observation or null",
+  "narrative": "3-5 sentence arc connecting recent weeks, or null if fewer than 2 prior reviews",
   "next_week_focus": [
     {{"goal_id": <id or null>, "goal_title": "...", "suggestion": "specific action to take"}},
     {{"goal_id": <id or null>, "goal_title": "...", "suggestion": "specific action to take"}}

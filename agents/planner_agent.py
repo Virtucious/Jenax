@@ -35,6 +35,11 @@ class PlannerAgent(BaseAgent):
         today_blueprint_units = db.get_units_scheduled_today()
         active_habits = db.get_all_habits()
 
+        profile_block = db.get_profile_for_prompt()
+        energy_curve = db.get_energy_curve()
+        due_reviews = db.get_due_spaced_reviews(today.isoformat(), limit=2)
+        capacity = db.calculate_daily_capacity(today)
+
         return {
             "today": today.isoformat(),
             "day_name": today.strftime("%A"),
@@ -48,6 +53,10 @@ class PlannerAgent(BaseAgent):
             "pending_email_items": pending_email_items,
             "today_blueprint_units": today_blueprint_units,
             "active_habits": active_habits,
+            "profile_block": profile_block,
+            "energy_curve": energy_curve,
+            "due_reviews": due_reviews,
+            "capacity": capacity,
         }
 
     def build_prompt(self, context, extra_input=None):
@@ -63,6 +72,10 @@ class PlannerAgent(BaseAgent):
         pending_email_items = context["pending_email_items"]
         today_blueprint_units = context.get("today_blueprint_units", [])
         active_habits = context.get("active_habits", [])
+        profile_block = context.get("profile_block", "")
+        energy_curve = context.get("energy_curve", {})
+        due_reviews = context.get("due_reviews", [])
+        capacity = context.get("capacity", {})
 
         # Goal hierarchy text
         yearly = [g for g in active_goals if g["level"] == "yearly"]
@@ -266,7 +279,91 @@ class PlannerAgent(BaseAgent):
                     if prog_type == "progressive" and target:
                         blueprint_context += f" (progressive → {target} {unit})"
 
+        # Spaced reviews context
+        reviews_context = ""
+        if due_reviews:
+            reviews_context = "\n\n## Scheduled Reviews for Today (Spaced Repetition)"
+            reviews_context += "\nCap at 2 review tasks. These are low-energy, short recall exercises."
+            for r in due_reviews:
+                days_since = ""
+                try:
+                    from datetime import date as _d2
+                    completed_unit = db.get_blueprint_unit(r["blueprint_unit_id"])
+                    if completed_unit and completed_unit.get("completed_at"):
+                        delta = (_d2.today() - _d2.fromisoformat(completed_unit["completed_at"][:10])).days
+                        days_since = f" | {delta} days since completion"
+                except Exception:
+                    pass
+                meta_hint = ""
+                try:
+                    meta = json.loads(r["unit_metadata"]) if r.get("unit_metadata") else {}
+                    parts = []
+                    if meta.get("page_range"):
+                        parts.append(f"pp. {meta['page_range']}")
+                    if meta.get("exercises"):
+                        parts.append(f"exercises: {', '.join(meta['exercises'])}")
+                    if parts:
+                        meta_hint = " | " + " | ".join(parts)
+                except Exception:
+                    pass
+                reviews_context += (
+                    f"\n- [spaced_review_id:{r['id']}] Review #{r['review_number']}: "
+                    f"\"{r['unit_title']}\" from {r['blueprint_title']}{days_since}{meta_hint}"
+                )
+
         blueprint_task_rules = ""
+        # Energy curve section
+        _slot_times = [
+            ("slot_1", "6–9 AM"),
+            ("slot_2", "9–12 PM"),
+            ("slot_3", "12–3 PM"),
+            ("slot_4", "3–6 PM"),
+            ("slot_5", "6–9 PM"),
+        ]
+        _emoji_map = {"high": "⚡", "medium": "☕", "low": "🌿"}
+        ec_lines = []
+        for slot_key, time_range in _slot_times:
+            label = energy_curve.get(f"{slot_key}_label", slot_key.replace("_", " ").title())
+            energy = energy_curve.get(f"{slot_key}_energy", "medium")
+            emoji = _emoji_map.get(energy, "☕")
+            ec_lines.append(f"{label} ({time_range}): {emoji} {energy} energy")
+        energy_curve_section = "\n\n## Energy Curve (Your Day)\n" + "\n".join(ec_lines) + """
+
+Sequencing rules:
+- Match task energy_level to available slots: ⚡ high → high-energy slots, ☕ medium → medium, 🌿 low → low
+- Never stack more than 2 high-energy tasks consecutively
+- After a high-energy task, include a low-energy task for recovery
+- Assign each task a suggested_slot name (e.g. "Morning (9-12)") as a recommendation, not a rigid schedule"""
+
+        # Capacity section
+        capacity_section = ""
+        capacity_rules = ""
+        if capacity:
+            cap_total = capacity.get("total_capacity_minutes", 240)
+            cap_already = capacity.get("already_scheduled_minutes", 0)
+            cap_remaining = capacity.get("remaining_minutes", cap_total)
+            cap_quality = capacity.get("day_quality", "medium")
+            cap_notes = capacity.get("notes") or ""
+            capacity_section = f"\n\n## Today's Capacity Assessment"
+            capacity_section += f"\nTotal capacity: {cap_total} min ({cap_quality} day)"
+            capacity_section += f"\nAlready scheduled: {cap_already} min"
+            capacity_section += f"\nRemaining capacity: {cap_remaining} min"
+            if cap_notes:
+                capacity_section += f"\nNotes: {cap_notes}"
+
+            _low_cap = cap_remaining < 60
+            _recovery = "Recovery day" in cap_notes
+            cap_rule_lines = [
+                f"- Total task time MUST NOT exceed remaining capacity ({cap_remaining} min)",
+            ]
+            if _low_cap:
+                cap_rule_lines.append("- Remaining capacity is very low — generate only 1-2 small tasks")
+            if _recovery:
+                cap_rule_lines.append("- Recovery day: reduce load by 40%, avoid high-energy tasks")
+            if cap_quality == "low":
+                cap_rule_lines.append("- Low-quality day: prefer low-energy, low-stakes tasks")
+            capacity_rules = "\n\nCapacity rules:\n" + "\n".join(cap_rule_lines)
+
         if today_blueprint_units or active_habits:
             blueprint_task_rules = """
 9. For LEARNING blueprints: reference specific chapters, page ranges, and exercises. Include the blueprint_unit_id from the unit's id field.
@@ -274,19 +371,26 @@ class PlannerAgent(BaseAgent):
 11. For HABIT blueprints: use the exact current target quantity and unit. Keep description motivational.
 12. ALWAYS include blueprint_unit_id in your response when a task corresponds to a blueprint unit so the system can mark units complete when the task is done."""
 
+        review_task_rules = ""
+        if due_reviews:
+            review_task_rules = """
+13. For REVIEW tasks (from Scheduled Reviews): set task_type="review", energy_level="low", estimated_minutes=5-10. Include spaced_review_id. Description should prompt active recall: "Without looking at your notes, recall 3 key ideas from this unit. Then check." Never exceed 2 review tasks."""
+
         carry_rule = ""
         if carried_tasks:
             heavy = [t for t in carried_tasks if (t.get("carry_count") or 0) >= 3]
             if heavy:
                 carry_rule = "\n9. Tasks carried 3+ times should be flagged in daily_insight as needing to be broken down or reconsidered."
 
-        return f"""{self.persona}
+        profile_section = f"\n{profile_block}\n" if profile_block else ""
 
+        return f"""{self.persona}
+{profile_section}
 ## User's Active Goals
 {goals_text}
 
 ## Recent Task History (Last 7 Days)
-{history_text}{existing_text}{extra_context}{blueprint_context}{agent_inputs_text}
+{history_text}{existing_text}{extra_context}{blueprint_context}{reviews_context}{energy_curve_section}{capacity_section}{agent_inputs_text}
 
 ## Rules
 1. Generate 5-8 tasks maximum. Less is better.
@@ -295,8 +399,8 @@ class PlannerAgent(BaseAgent):
 4. Include 1 quick win (under 15 minutes).
 5. If other agents flagged items, integrate them — don't just append.
 6. If a task has been carried forward 3+ times, either break it smaller or recommend dropping it.
-7. Total estimated time should not exceed 6 hours of focused work.
-8. If it's a historically low-completion day, generate fewer tasks (4–5 instead of 7–8).{carry_rule}{blueprint_task_rules}
+7. Total estimated time MUST NOT exceed remaining capacity (see Today's Capacity Assessment above).
+8. If it's a historically low-completion day, generate fewer tasks (4–5 instead of 7–8).{carry_rule}{blueprint_task_rules}{review_task_rules}{capacity_rules}
 
 Respond ONLY with valid JSON:
 {{
@@ -308,8 +412,12 @@ Respond ONLY with valid JSON:
       "goal_id": <id or null>,
       "estimated_minutes": <number>,
       "energy_level": "high|medium|low",
+      "suggested_slot": "Slot name (time range)",
+      "sequence_position": <1-based integer>,
       "sequence_reason": "Why this task is in this position",
-      "blueprint_unit_id": <id or null>
+      "blueprint_unit_id": <id or null>,
+      "task_type": "normal|review",
+      "spaced_review_id": <id or null>
     }}
   ],
   "daily_insight": "One sentence of strategic advice",

@@ -127,6 +127,32 @@ def delete_task(task_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/tasks/<int:task_id>/review-rating", methods=["POST"])
+def submit_review_rating(task_id):
+    """Submit quality rating (1-5) for a completed review task."""
+    task = db.get_task(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    if task.get("task_type") != "review":
+        return jsonify({"error": "Not a review task"}), 400
+
+    data = request.get_json(force=True) or {}
+    quality = data.get("quality_rating")
+    if quality not in (1, 2, 3, 4, 5):
+        return jsonify({"error": "quality_rating must be 1-5"}), 400
+
+    review_id = task.get("spaced_review_id")
+    if review_id:
+        db.complete_spaced_review(review_id, quality)
+
+    # Update review compliance in user profile
+    compliance = db.get_spaced_review_compliance(days=30)
+    if compliance is not None:
+        db.upsert_profile_entry("learning", "review_compliance", str(compliance))
+
+    return jsonify({"ok": True, "quality_rating": quality, "spaced_review_id": review_id})
+
+
 # ---------------------------------------------------------------------------
 # Task Carry-Forward (Feature 1)
 # ---------------------------------------------------------------------------
@@ -174,8 +200,6 @@ def get_daily_review():
     reflection = db.get_reflection_for_date(date_str)
     if not reflection:
         return jsonify(None)
-    # Try to parse ai_summary as JSON review
-    import json
     ai_summary = reflection.get("ai_summary")
     if ai_summary:
         try:
@@ -184,6 +208,9 @@ def get_daily_review():
                 reflection["review"] = review_data
         except Exception:
             pass
+    # Attach escalated suggestions (level >= 2) for the UI
+    all_suggestions = db.get_active_suggestions()
+    reflection["escalations"] = [s for s in all_suggestions if s["escalation_level"] >= 2]
     return jsonify(reflection)
 
 
@@ -207,6 +234,34 @@ def create_daily_review():
 # ---------------------------------------------------------------------------
 # Weekly Review (Feature 3)
 # ---------------------------------------------------------------------------
+
+@app.route("/api/review/escalation/<int:suggestion_id>/respond", methods=["POST"])
+def escalation_respond(suggestion_id):
+    """Handle user response to an escalated suggestion."""
+    suggestion = db.get_suggestion(suggestion_id)
+    if not suggestion:
+        return jsonify({"error": "Suggestion not found"}), 404
+
+    data = request.get_json(force=True) or {}
+    action = data.get("action")
+    if action not in ("still_important", "too_big", "pause", "drop"):
+        return jsonify({"error": "action must be still_important, too_big, pause, or drop"}), 400
+
+    related_goal_id = suggestion.get("related_goal_id")
+
+    if action == "still_important":
+        db.reset_suggestion_escalation(suggestion_id)
+    elif action in ("too_big", "drop"):
+        db.drop_suggestion(suggestion_id)
+        if action == "drop" and related_goal_id:
+            db.update_goal(related_goal_id, status="abandoned")
+    elif action == "pause":
+        db.drop_suggestion(suggestion_id)
+        if related_goal_id:
+            db.update_goal(related_goal_id, status="paused")
+
+    return jsonify({"ok": True, "action": action, "related_goal_id": related_goal_id})
+
 
 @app.route("/api/review/weekly", methods=["GET"])
 def get_weekly_review():
@@ -680,6 +735,10 @@ def generate_plan_stream():
                     source="ai",
                     estimated_minutes=t.get("estimated_minutes"),
                     blueprint_unit_id=t.get("blueprint_unit_id"),
+                    energy_level=t.get("energy_level"),
+                    suggested_slot=t.get("suggested_slot"),
+                    task_type=t.get("task_type", "normal"),
+                    spaced_review_id=t.get("spaced_review_id"),
                 )
                 inserted.append(task)
             results["planner"]["tasks"] = inserted
@@ -993,6 +1052,52 @@ def pipeline_stats():
     if not blueprint_id:
         return jsonify({"error": "blueprint_id query param required"}), 400
     return jsonify(db.get_pipeline_stats(blueprint_id))
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 — Energy Curve
+# ---------------------------------------------------------------------------
+
+@app.route("/api/energy-curve", methods=["GET"])
+def get_energy_curve():
+    return jsonify(db.get_energy_curve())
+
+
+@app.route("/api/energy-curve", methods=["PUT"])
+def save_energy_curve():
+    data = request.get_json(force=True) or {}
+    valid_energy = {"low", "medium", "high"}
+    for i in range(1, 6):
+        key = f"slot_{i}_energy"
+        if key in data and data[key] not in valid_energy:
+            return jsonify({"error": f"Invalid value for {key}: must be low, medium, or high"}), 400
+    curve = db.upsert_energy_curve(
+        user_defined=True,
+        slot_1_energy=data.get("slot_1_energy", "medium"),
+        slot_2_energy=data.get("slot_2_energy", "high"),
+        slot_3_energy=data.get("slot_3_energy", "low"),
+        slot_4_energy=data.get("slot_4_energy", "medium"),
+        slot_5_energy=data.get("slot_5_energy", "medium"),
+    )
+    return jsonify(curve)
+
+
+@app.route("/api/energy-curve/detect", methods=["POST"])
+def detect_energy_curve():
+    detected = db.detect_energy_curve_from_history()
+    if not detected:
+        return jsonify({
+            "error": "Not enough data — need at least 10 completed tasks with timestamps in the last 30 days"
+        }), 422
+    curve = db.upsert_energy_curve(
+        user_defined=False,
+        slot_1_energy=detected.get(1, "medium"),
+        slot_2_energy=detected.get(2, "high"),
+        slot_3_energy=detected.get(3, "low"),
+        slot_4_energy=detected.get(4, "medium"),
+        slot_5_energy=detected.get(5, "medium"),
+    )
+    return jsonify(curve)
 
 
 # ---------------------------------------------------------------------------
